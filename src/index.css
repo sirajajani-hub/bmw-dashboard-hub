@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "BMW Group Type Next";
+  src: url("/fonts/BMWGroupTN-Regular.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "BMW Group Type Next";
+  src: url("/fonts/BMWGroupTN-Medium.otf") format("opentype");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "BMW Group Type Next", "Arial", "Helvetica Neue", Helvetica, sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.bmw-deck {
+  font-family: var(--font-sans);
+  font-weight: 400;
+}
+
+.bmw-deck .font-bold,
+.bmw-deck .font-semibold {
+  font-weight: 500;
+}
+
+@page {
+  size: letter landscape;
+  margin: 0.5in;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .bmw-deck {
+    background: #fff !important;
+  }
+
+  .bmw-deck section,
+  .bmw-deck article,
+  .bmw-deck table,
+  .bmw-deck svg {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .bmw-deck .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  .bmw-deck svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  .bmw-deck thead {
+    display: table-header-group;
+  }
+
+  .bmw-deck tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .bmw-deck button,
+  .bmw-deck select {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
