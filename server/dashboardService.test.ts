@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  aggregateChannelPlatforms,
   buildCampaignAppendixRows,
   buildInsights,
   buildQaChecks,
@@ -107,6 +108,76 @@ test('entityLabelForInsight uses site name for CTV/OLV and placement type when s
     ),
     'Google Display Network',
   );
+});
+
+test('aggregateChannelPlatforms can group video spend by Platform', () => {
+  const rows: DetailRow[] = [
+    makeRow({
+      Channel: 'Connected TV / OTT',
+      Month: '2026-01-01',
+      Platform: 'DV360',
+      Publisher: 'Hulu',
+      Spend: 400,
+    }),
+    makeRow({
+      Channel: 'Connected TV / OTT',
+      Month: '2026-02-01',
+      Platform: 'DV360',
+      Publisher: 'Roku',
+      Spend: 600,
+    }),
+    makeRow({
+      Channel: 'Online Video',
+      Month: '2026-03-01',
+      Platform: 'CM360',
+      Publisher: 'YouTube',
+      Spend: 300,
+    }),
+  ];
+
+  assert.deepEqual(aggregateChannelPlatforms(rows, CURRENT_QUARTER.quarter, CURRENT_QUARTER.year, 'ctv'), [
+    { label: 'DV360', spend: 1000, spendDisplay: '$1,000.00' },
+  ]);
+  assert.deepEqual(aggregateChannelPlatforms(rows, CURRENT_QUARTER.quarter, CURRENT_QUARTER.year, 'olv'), [
+    { label: 'CM360', spend: 300, spendDisplay: '$300.00' },
+  ]);
+});
+
+test('aggregateChannelPlatforms uses channel grouping for video chart except YouTube platforms', () => {
+  const rows: DetailRow[] = [
+    makeRow({
+      Channel: 'Connected TV / OTT',
+      Month: '2026-01-01',
+      Platform: 'Zeta',
+      Spend: 400,
+    }),
+    makeRow({
+      Channel: 'Connected TV / OTT',
+      Month: '2026-02-01',
+      Platform: 'Amazon',
+      Spend: 600,
+    }),
+    makeRow({
+      Channel: 'Online Video',
+      Month: '2026-03-01',
+      Platform: 'YouTube',
+      Spend: 300,
+    }),
+    makeRow({
+      Channel: 'Connected TV / OTT',
+      Month: '2026-03-01',
+      Platform: 'YouTube TV',
+      Spend: 200,
+    }),
+  ];
+
+  assert.deepEqual(aggregateChannelPlatforms(rows, CURRENT_QUARTER.quarter, CURRENT_QUARTER.year, 'ctv', 'videoChart'), [
+    { label: 'Connected TV / OTT', spend: 1000, spendDisplay: '$1,000.00' },
+    { label: 'YouTube TV', spend: 200, spendDisplay: '$200.00' },
+  ]);
+  assert.deepEqual(aggregateChannelPlatforms(rows, CURRENT_QUARTER.quarter, CURRENT_QUARTER.year, 'olv', 'videoChart'), [
+    { label: 'YouTube', spend: 300, spendDisplay: '$300.00' },
+  ]);
 });
 
 test('primaryMetricForChannel uses VCR for CTV/OLV and CPKBA for non-video fallback channels', () => {
@@ -245,15 +316,15 @@ test('buildInsights keeps CTV insight copy VCR-only across delivery, variance, c
   const allBullets = ctvChannel.sections.flatMap((section) => section.bullets);
   assert.ok(allBullets.length > 0);
   assert.ok(allBullets.some((bullet) => bullet.includes('VCR')));
-  assert.ok(allBullets.some((bullet) => bullet.includes('Hulu')));
-  assert.ok(allBullets.some((bullet) => bullet.includes('New York Interconnect')));
+  assert.ok(allBullets.some((bullet) => bullet.includes('Connected TV / OTT')));
+  assert.ok(allBullets.some((bullet) => bullet.includes('CTV Standard')));
   assert.ok(allBullets.every((bullet) => !/\bDV360\b|\bCM360\b/.test(bullet)));
   assert.ok(allBullets.every((bullet) => !/\bCPKBA\b|\bCP KBA\b/.test(bullet)));
   assert.ok(allBullets.every((bullet) => !/\bKBA\b|\bKBAs\b/.test(bullet)));
 
   const deliverySection = ctvChannel.sections.find((section) => section.id === 'delivery');
   assert.ok(deliverySection);
-  assert.ok(deliverySection.bullets.every((bullet) => /spend with a VCR/i.test(bullet)));
+  assert.ok(deliverySection.bullets.every((bullet) => /Q1 2026 VCR/i.test(bullet)));
 
   const varianceSection = ctvChannel.sections.find((section) => section.id === 'variance');
   assert.ok(varianceSection);
@@ -861,8 +932,7 @@ test('buildInsights returns the canonical CTV section copy for the current fixtu
   const sections = sectionBulletsById(result, 'Connected TV / OTT');
 
   assert.deepEqual(sections.delivery, [
-    'Hulu delivered 66.7% of spend with a VCR of 84.0%. VCR for the platform improved by 11.3% quarter over quarter to 84.0% from 75.5% in Q4 2025.',
-    'New York Interconnect delivered 33.3% of spend with a VCR of 69.0%. VCR for the platform remained stable quarter over quarter at 69.0% vs 71.5% in Q4 2025.',
+    'Connected TV / OTT delivered 100.0% of spend; Q1 2026 VCR was 76.5% vs 73.5% in Q4 2025 (+4.1%).',
   ]);
   assert.deepEqual(sections.variance, [
     'VCR remained stable YoY at 76.5% vs 73.5%.',
@@ -1104,9 +1174,61 @@ test('buildInsights suppresses CTV delivery bullets that do not have a valid VCR
   const sections = sectionBulletsById(result, 'Connected TV / OTT');
 
   assert.deepEqual(sections.delivery, [
-    'Programmatic Video - Connected TV/OTT delivered 66.7% of spend with a VCR of 82.0%. VCR for the platform remained stable quarter over quarter at 82.0% vs 80.0% in Q4 2025.',
+    'Connected TV / OTT delivered 100.0% of spend; Q1 2026 VCR was 82.0% vs 80.0% in Q4 2025 (+2.5%).',
   ]);
   assert.ok(sections.delivery.every((bullet) => !/\bKBA\b|\bKBAs\b/.test(bullet)));
+});
+
+test('buildInsights uses the video chart grouping for video delivery bullets', () => {
+  const rows: DetailRow[] = [
+    makeRow({
+      Channel: 'Connected TV / OTT',
+      Month: '2026-01-01',
+      Platform: 'Zeta',
+      Spend: 6000,
+      VCR: 0.99,
+      'Video Completes': 990,
+      'Video Plays': 1000,
+    }),
+    makeRow({
+      Channel: 'Connected TV / OTT',
+      Month: '2025-10-01',
+      Platform: 'Zeta',
+      Spend: 5000,
+      VCR: 0.98,
+      'Video Completes': 980,
+      'Video Plays': 1000,
+    }),
+    makeRow({
+      Channel: 'Online Video',
+      Month: '2026-01-01',
+      Platform: 'YouTube',
+      Spend: 2000,
+      VCR: 0.83,
+      'Video Completes': 830,
+      'Video Plays': 1000,
+    }),
+    makeRow({
+      Channel: 'Online Video',
+      Month: '2025-10-01',
+      Platform: 'YouTube',
+      Spend: 1800,
+      VCR: 0.8,
+      'Video Completes': 800,
+      'Video Plays': 1000,
+    }),
+  ];
+
+  const result = buildInsights(rows, CURRENT_QUARTER, COMPARISON_QUARTER);
+  const ctvSections = sectionBulletsById(result, 'Connected TV / OTT');
+  const olvSections = sectionBulletsById(result, 'Online Video');
+
+  assert.deepEqual(ctvSections.delivery, [
+    'Connected TV / OTT delivered 75.0% of spend; Q1 2026 VCR was 99.0% vs 98.0% in Q4 2025 (+1.0%).',
+  ]);
+  assert.deepEqual(olvSections.delivery, [
+    'YouTube delivered 25.0% of spend; Q1 2026 VCR was 83.0% vs 80.0% in Q4 2025 (+3.7%).',
+  ]);
 });
 
 test('buildInsights uses "decreased by" for material negative rate variance changes', () => {
@@ -1332,6 +1454,128 @@ test('buildInsights includes every active social platform in delivery bullets', 
   assert.ok(sections.delivery.every((bullet) => /quarter over quarter/.test(bullet)));
 });
 
+test('buildInsights orders social delivery bullets by spend share', () => {
+  const rows: DetailRow[] = [
+    makeRow({
+      Channel: 'Social',
+      Platform: 'Meta - Facebook',
+      Campaign: 'Social A',
+      Month: '2026-01-01',
+      Spend: 500,
+      'All KBAs': 100,
+      Impressions: 10000,
+      Clicks: 400,
+    }),
+    makeRow({
+      Channel: 'Social',
+      Platform: 'Meta - Instagram',
+      Campaign: 'Social B',
+      Month: '2026-01-01',
+      Spend: 700,
+      'All KBAs': 50,
+      Impressions: 11000,
+      Clicks: 420,
+    }),
+    makeRow({
+      Channel: 'Social',
+      Platform: 'TikTok',
+      Campaign: 'Social C',
+      Month: '2026-02-01',
+      Spend: 300,
+      'All KBAs': 200,
+      Impressions: 9000,
+      Clicks: 350,
+    }),
+  ];
+
+  const result = buildInsights(rows, CURRENT_QUARTER, COMPARISON_QUARTER);
+  const sections = sectionBulletsById(result, 'Social');
+  const platformBullets = sections.delivery.filter((bullet) => bullet.includes(' delivered '));
+
+  assert.equal(platformBullets[0]?.startsWith('Meta - Instagram delivered'), true);
+  assert.equal(platformBullets[1]?.startsWith('Meta - Facebook delivered'), true);
+  assert.equal(platformBullets[2]?.startsWith('TikTok delivered'), true);
+});
+
+test('buildInsights adds a Meta versus TikTok platform efficiency comparison', () => {
+  const rows: DetailRow[] = [
+    makeRow({
+      Channel: 'Social',
+      Platform: 'Meta - Facebook',
+      Campaign: 'Social A',
+      Month: '2026-01-01',
+      Spend: 300,
+      'All KBAs': 60,
+      Impressions: 10000,
+      Clicks: 400,
+    }),
+    makeRow({
+      Channel: 'Social',
+      Platform: 'Meta - Instagram',
+      Campaign: 'Social B',
+      Month: '2026-01-01',
+      Spend: 164,
+      'All KBAs': 40,
+      Impressions: 11000,
+      Clicks: 420,
+    }),
+    makeRow({
+      Channel: 'Social',
+      Platform: 'TikTok',
+      Campaign: 'Social C',
+      Month: '2026-02-01',
+      Spend: 260,
+      'All KBAs': 100,
+      Impressions: 9000,
+      Clicks: 350,
+    }),
+  ];
+
+  const result = buildInsights(rows, CURRENT_QUARTER, COMPARISON_QUARTER);
+  const sections = sectionBulletsById(result, 'Social');
+
+  assert.ok(sections.delivery.includes(
+    "Platform Performance: In Q1 2026, Meta's CPKBA was $4.64 versus TikTok's $2.60, representing 44.0% greater efficiency on TikTok with room to scale.",
+  ));
+});
+
+test('buildInsights adds Social secondary KPI performance to quarter learnings', () => {
+  const rows: DetailRow[] = [
+    makeRow({
+      Channel: 'Social',
+      Platform: 'Meta - Facebook',
+      Campaign: 'Social A',
+      Month: '2026-01-01',
+      Spend: 16900,
+      'All KBAs': 1400,
+      Leads: 140,
+      'Page Visits': 1207,
+      Impressions: 10000,
+      Clicks: 400,
+    }),
+    makeRow({
+      Channel: 'Social',
+      Platform: 'Meta - Facebook',
+      Campaign: 'Social A',
+      Month: '2025-01-01',
+      Spend: 10000,
+      'All KBAs': 1000,
+      Leads: 100,
+      'Page Visits': 1000,
+      Impressions: 9000,
+      Clicks: 300,
+    }),
+  ];
+
+  const result = buildInsights(rows, CURRENT_QUARTER, PRIOR_YEAR_SAME_QUARTER);
+  const sections = sectionBulletsById(result, 'Social');
+
+  assert.equal(
+    sections.quarterLearnings[0],
+    'Social KBAs increased 40.0% year over year, reaching 1,400 in Q1 2026 vs 1,000 in Q1 2025. CPKBA efficiency decreased 20.7% year over year to $12.07 in Q1 2026 from $10.00 in Q1 2025. Secondary KPIs: CPL came in at $120.71 (+20.7% YoY), and Lead rate improved 16.0% YoY despite spend scaling of +69.0% YoY.',
+  );
+});
+
 test('buildInsights excludes zero-spend social platforms and campaigns from delivery sections', () => {
   const rows: DetailRow[] = [
     makeRow({
@@ -1531,6 +1775,7 @@ test('buildInsights renders a social campaign takeaway for each allowed campaign
   assert.ok(sections.campaignDelivery.some((bullet) => bullet.startsWith('Sedan Low accounted for')));
   assert.ok(sections.campaignDelivery.some((bullet) => bullet.startsWith('EV accounted for')));
   assert.ok(sections.campaignDelivery.some((bullet) => bullet.startsWith('Sedan High accounted for')));
+  assert.ok(sections.campaignDelivery.every((bullet) => !bullet.includes('CTR')));
 });
 
 test('buildInsights aggregates social campaign takeaways across platforms for the same campaign label', () => {
@@ -1726,6 +1971,27 @@ test('buildInsightRewriteSpec preserves both KBA volume and CPKBA terms in quart
   );
 });
 
+test('buildInsightRewriteSpec preserves Social secondary KPI terms in quarter learnings', () => {
+  const bullet =
+    'Social KBAs increased 40.0% year over year, reaching 1,400 in Q1 2026 vs 1,000 in Q1 2025. CPKBA efficiency decreased 20.7% year over year to $12.07 in Q1 2026 from $10.00 in Q1 2025. Secondary KPIs: CPL came in at $120.71 (+20.7% YoY), and Lead rate improved 16.0% YoY despite spend scaling of +69.0% YoY.';
+  const spec = buildInsightRewriteSpec('Social', 'quarterLearnings', bullet);
+
+  assert.ok(spec.requiredTerms.includes('CPL'));
+  assert.ok(spec.requiredTerms.includes('Lead rate'));
+  assert.ok(spec.requiredTerms.includes('Lead rate improved'));
+  assert.ok(!spec.forbiddenTerms.includes('improved'));
+  assert.deepEqual(
+    validateInsightRewrite(
+      spec,
+      'Social KBAs increased 40.0% year over year to 1,400 in Q1 2026 from 1,000 in Q1 2025, while CPKBA efficiency decreased 20.7% year over year to $12.07 from $10.00; secondary KPIs included CPL at $120.71 (+20.7% YoY) despite spend scaling of +69.0% YoY.',
+    ),
+    {
+      valid: false,
+      reason: 'missing required term: Lead rate',
+    },
+  );
+});
+
 test('buildInsightRewriteSpec does not infer a KBA decrease requirement from a later CPKBA clause', () => {
   const bullet =
     'Social KBAs increased 17.6% year over year, reaching 694,938 in Q1 2026 vs 591,111 in Q1 2025. CPKBA efficiency decreased 32.9% year over year to $4.07 in Q1 2026 from $3.06 in Q1 2025.';
@@ -1743,20 +2009,24 @@ test('buildInsightRewriteSpec does not infer a KBA decrease requirement from a l
   );
 });
 
-test('buildCampaignAppendixRows includes both quarter columns and preserves comparison-only rows', () => {
+test('buildCampaignAppendixRows includes both quarter columns and filters zero-spend current platform rows', () => {
   const currentChannelMap = new Map([
     ['Search', { channel: 'Search', platform: 'Search - Google Ads', spend: 100, kbas: 20, byoStarts: 10, byoCompletes: 5, inventorySearches: 8, leads: 2, impressions: 1000 }],
+    ['Digital Display', { channel: 'Digital Display', platform: 'DV360', spend: 50, kbas: 5, byoStarts: 2, byoCompletes: 1, inventorySearches: 3, leads: 1, impressions: 500 }],
   ]);
   const comparisonChannelMap = new Map([
     ['Search', { channel: 'Search', platform: 'Search - Google Ads', spend: 80, kbas: 16, byoStarts: 8, byoCompletes: 4, inventorySearches: 6, leads: 1, impressions: 900 }],
     ['Social', { channel: 'Social', platform: 'Meta - Facebook', spend: 60, kbas: 12, byoStarts: 7, byoCompletes: 3, inventorySearches: 4, leads: 1, impressions: 700 }],
+    ['Digital Display', { channel: 'Digital Display', platform: 'DV360', spend: 45, kbas: 4, byoStarts: 1, byoCompletes: 1, inventorySearches: 2, leads: 1, impressions: 450 }],
   ]);
   const currentManagedByMap = new Map([
     ['Search::Search - Google Ads', { channel: 'Search', platform: 'Search - Google Ads', spend: 100, kbas: 20, byoStarts: 10, byoCompletes: 5, inventorySearches: 8, leads: 2, impressions: 1000 }],
+    ['Digital Display::DV360', { channel: 'Digital Display', platform: 'DV360', spend: 50, kbas: 5, byoStarts: 2, byoCompletes: 1, inventorySearches: 3, leads: 1, impressions: 500 }],
   ]);
   const comparisonManagedByMap = new Map([
     ['Search::Search - Google Ads', { channel: 'Search', platform: 'Search - Google Ads', spend: 80, kbas: 16, byoStarts: 8, byoCompletes: 4, inventorySearches: 6, leads: 1, impressions: 900 }],
     ['Social::Meta - Facebook', { channel: 'Social', platform: 'Meta - Facebook', spend: 60, kbas: 12, byoStarts: 7, byoCompletes: 3, inventorySearches: 4, leads: 1, impressions: 700 }],
+    ['Digital Display::DV360', { channel: 'Digital Display', platform: 'DV360', spend: 45, kbas: 4, byoStarts: 1, byoCompletes: 1, inventorySearches: 2, leads: 1, impressions: 450 }],
   ]);
 
   const rows = buildCampaignAppendixRows(
@@ -1768,16 +2038,15 @@ test('buildCampaignAppendixRows includes both quarter columns and preserves comp
 
   const searchPlatform = rows.find((row) => row.rowType === 'platform' && row.channel === 'Search');
   const socialPlatform = rows.find((row) => row.rowType === 'platform' && row.channel === 'Social');
+  const displayRows = rows.filter((row) => row.channel === 'Digital Display' || row.channel === 'Display');
 
   assert.ok(searchPlatform);
   assert.equal(searchPlatform.current.spendDisplay, '$100.00');
   assert.equal(searchPlatform.comparison.spendDisplay, '$80.00');
   assert.equal(searchPlatform.current.spendDeltaLabel, '+25%');
 
-  assert.ok(socialPlatform);
-  assert.equal(socialPlatform.current.spendDisplay, '$0.00');
-  assert.equal(socialPlatform.comparison.spendDisplay, '$60.00');
-  assert.equal(socialPlatform.current.spendDeltaLabel, '-100%');
+  assert.equal(socialPlatform, undefined);
+  assert.deepEqual(displayRows, []);
 });
 
 test('buildInsights retains all Search platform delivery bullets', () => {

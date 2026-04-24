@@ -1181,17 +1181,20 @@ export function buildCampaignAppendixRows(
   currentPlatformMap: Map<string, ReturnType<typeof emptyAppendixAggregate>>,
   comparisonPlatformMap: Map<string, ReturnType<typeof emptyAppendixAggregate>>,
 ) {
-  const orderedChannels = Array.from(new Set([...currentChannelMap.keys(), ...comparisonChannelMap.keys()])).sort((left, right) => {
-    const leftSpend = Math.max(currentChannelMap.get(left)?.spend ?? 0, comparisonChannelMap.get(left)?.spend ?? 0);
-    const rightSpend = Math.max(currentChannelMap.get(right)?.spend ?? 0, comparisonChannelMap.get(right)?.spend ?? 0);
-    return rightSpend - leftSpend;
-  });
+  const orderedChannels = Array.from(new Set([...currentChannelMap.keys(), ...comparisonChannelMap.keys()]))
+    .filter((channel) => normalizeChannel(channel) !== 'digital-display')
+    .sort((left, right) => {
+      const leftSpend = Math.max(currentChannelMap.get(left)?.spend ?? 0, comparisonChannelMap.get(left)?.spend ?? 0);
+      const rightSpend = Math.max(currentChannelMap.get(right)?.spend ?? 0, comparisonChannelMap.get(right)?.spend ?? 0);
+      return rightSpend - leftSpend;
+    });
 
   return orderedChannels.flatMap((channel) => {
     const currentChannel = currentChannelMap.get(channel) ?? emptyAppendixAggregate({ channel });
     const comparisonChannel = comparisonChannelMap.get(channel) ?? emptyAppendixAggregate({ channel });
     const orderedPlatformKeys = Array.from(new Set([...currentPlatformMap.keys(), ...comparisonPlatformMap.keys()]))
       .filter((key) => (currentPlatformMap.get(key)?.channel ?? comparisonPlatformMap.get(key)?.channel) === channel)
+      .filter((key) => (currentPlatformMap.get(key)?.spend ?? 0) > 0)
       .sort((left, right) => {
         const leftSpend = Math.max(currentPlatformMap.get(left)?.spend ?? 0, comparisonPlatformMap.get(left)?.spend ?? 0);
         const rightSpend = Math.max(currentPlatformMap.get(right)?.spend ?? 0, comparisonPlatformMap.get(right)?.spend ?? 0);
@@ -1693,6 +1696,58 @@ function deliveryComparisonNarrative(
   return `${metric.label} for the ${subjectLabel} ${favorableChange ? 'improved' : 'decreased'} by ${delta === null ? '' : `${formatPercent(Math.abs(delta))} `}${comparisonLabel} to ${currentDisplay} from ${priorDisplay} in ${priorQuarterLabel}.`;
 }
 
+function socialPlatformComparisonGroup(row: DetailRow) {
+  const platform = (row.Platform || '').trim().toLowerCase();
+  if (platform.startsWith('meta')) {
+    return 'Meta';
+  }
+  if (platform.includes('tiktok')) {
+    return 'TikTok';
+  }
+
+  return null;
+}
+
+function metaTikTokComparisonCandidate(channelCurrent: DetailRow[], currentQuarterLabel: string) {
+  const totals = new Map<string, { spend: number; kbas: number; rows: number }>();
+
+  for (const row of channelCurrent) {
+    const group = socialPlatformComparisonGroup(row);
+    if (!group) {
+      continue;
+    }
+
+    const current = totals.get(group) ?? { spend: 0, kbas: 0, rows: 0 };
+    current.spend += row.Spend;
+    current.kbas += row['All KBAs'];
+    current.rows += 1;
+    totals.set(group, current);
+  }
+
+  const meta = totals.get('Meta');
+  const tiktok = totals.get('TikTok');
+  if (!meta || !tiktok || meta.spend <= 0 || tiktok.spend <= 0) {
+    return null;
+  }
+
+  const metaCpkba = safeDivide(meta.spend, meta.kbas);
+  const tiktokCpkba = safeDivide(tiktok.spend, tiktok.kbas);
+  if (!isPresentableInsightValue(metaCpkba) || !isPresentableInsightValue(tiktokCpkba) || tiktokCpkba >= metaCpkba) {
+    return null;
+  }
+
+  const efficiencyLift = safeDivide(metaCpkba - tiktokCpkba, metaCpkba) * 100;
+  if (!isPresentableInsightValue(efficiencyLift)) {
+    return null;
+  }
+
+  return {
+    text: `Platform Performance: In ${currentQuarterLabel}, Meta's CPKBA was ${formatCurrency(metaCpkba)} versus TikTok's ${formatCurrency(tiktokCpkba)}, representing ${formatPercent(efficiencyLift)} greater efficiency on TikTok with room to scale.`,
+    evidenceCount: meta.rows + tiktok.rows,
+    metricValues: [metaCpkba, tiktokCpkba, efficiencyLift],
+  };
+}
+
 function quarterComparisonChange(delta: number | null) {
   if (delta === null) {
     return null;
@@ -1848,6 +1903,72 @@ function quarterLearningCombinedNarrative(
   return volumeNarrative ?? efficiencyNarrative;
 }
 
+function abbreviatedComparisonLabel(comparisonLabel: string) {
+  if (comparisonLabel === 'year over year') {
+    return 'YoY';
+  }
+
+  if (comparisonLabel === 'quarter over quarter') {
+    return 'QoQ';
+  }
+
+  return 'vs comparison quarter';
+}
+
+function socialSecondaryKpiNarrative(
+  channelId: string,
+  comparisonLabel: string,
+  current: { spend: number; leads: number; pageVisits: number },
+  prior: { spend: number; leads: number; pageVisits: number },
+) {
+  if (channelId !== 'social') {
+    return null;
+  }
+
+  const currentCpl = safeDivide(current.spend, current.leads);
+  const priorCpl = safeDivide(prior.spend, prior.leads);
+  const currentLeadRate = safeDivide(current.leads, current.pageVisits);
+  const priorLeadRate = safeDivide(prior.leads, prior.pageVisits);
+  const cplDelta = changePercent(currentCpl, priorCpl);
+  const leadRateDelta = changePercent(currentLeadRate, priorLeadRate);
+  const spendDelta = changePercent(current.spend, prior.spend);
+
+  if (
+    !isPresentableInsightValue(currentCpl) ||
+    !isPresentableInsightValue(priorCpl) ||
+    !isPresentableInsightValue(currentLeadRate) ||
+    !isPresentableInsightValue(priorLeadRate) ||
+    cplDelta === null ||
+    leadRateDelta === null ||
+    spendDelta === null
+  ) {
+    return null;
+  }
+
+  const metricValues = [
+    currentCpl,
+    priorCpl,
+    currentLeadRate,
+    priorLeadRate,
+    cplDelta,
+    leadRateDelta,
+    spendDelta,
+  ];
+
+  const shortComparisonLabel = abbreviatedComparisonLabel(comparisonLabel);
+  const cplDeltaLabel = `${cplDelta > 0 ? '+' : ''}${formatPercent(cplDelta)}`;
+  const leadRateMovement = leadRateDelta >= 0 ? 'improved' : 'decreased';
+  const spendContext =
+    spendDelta >= 0
+      ? `despite spend scaling of +${formatPercent(spendDelta)} ${shortComparisonLabel}`
+      : `while spend decreased ${formatPercent(Math.abs(spendDelta))} ${shortComparisonLabel}`;
+
+  return {
+    text: `Secondary KPIs: CPL came in at ${formatCurrency(currentCpl)} (${cplDeltaLabel} ${shortComparisonLabel}), and Lead rate ${leadRateMovement} ${formatPercent(Math.abs(leadRateDelta))} ${shortComparisonLabel} ${spendContext}.`,
+    metricValues,
+  };
+}
+
 function lowMetricNarrative(metric: InsightMetric) {
   if (metric.label === 'VCR') {
     return `a low ${metric.label}`;
@@ -1937,19 +2058,23 @@ export function aggregateChannelPlatforms(
   quarter: number,
   year: number,
   channelId: string,
-  labelField: 'platform' | 'videoEntity' = 'platform',
+  labelField: 'platform' | 'videoEntity' | 'videoChart' = 'platform',
 ): Array<{ label: string; spend: number; spendDisplay: string }> {
   const scopedRows = rows.filter((row) => {
     const month = parseMonth(row.Month);
     return monthInQuarter(month, quarter, year) && normalizeChannel(row.Channel || '') === channelId;
   });
 
-  const grouped = new Map<string, { label: string; spend: number }>();
+    const grouped = new Map<string, { label: string; spend: number }>();
   for (const row of scopedRows) {
+    const platformLabel = (row.Platform || '').trim();
+    const channelLabel = (row.Channel || '').trim();
     const label =
       labelField === 'videoEntity'
         ? (row.Publisher || '').trim() || entityLabelForInsight(row)
-        : (row.Platform || '').trim() || 'Unassigned';
+        : labelField === 'videoChart'
+          ? videoChartLabelForRow(row)
+          : platformLabel || 'Unassigned';
     const current = grouped.get(label) ?? { label, spend: 0 };
     current.spend += row.Spend;
     grouped.set(label, current);
@@ -1962,6 +2087,14 @@ export function aggregateChannelPlatforms(
       spend: entry.spend,
       spendDisplay: formatCurrency(entry.spend),
     }));
+}
+
+function videoChartLabelForRow(row: DetailRow) {
+  const platformLabel = (row.Platform || '').trim();
+  const channelLabel = (row.Channel || '').trim();
+  return platformLabel === 'YouTube' || platformLabel === 'YouTube TV'
+    ? platformLabel
+    : channelLabel || 'Unassigned';
 }
 
 type CampaignCardBucket = {
@@ -2141,6 +2274,11 @@ export function buildInsights(
   const scopedPrior = rows.filter((row) =>
     monthInQuarter(parseMonth(row.Month), comparisonQuarter.quarter, comparisonQuarter.year),
   );
+  const currentVideoRows = scopedCurrent.filter((row) => {
+    const channel = normalizeChannel(row.Channel || '');
+    return channel === 'ctv' || channel === 'olv';
+  });
+  const totalVideoSpendCurrent = Math.max(sumBy(currentVideoRows, (row) => row.Spend), 1);
   const audit: InsightAudit = {
     renderedChannelCount: 0,
     renderedSectionCount: 0,
@@ -2236,6 +2374,8 @@ export function buildInsights(
 
       const currentSpend = sumBy(channelCurrent, (row) => row.Spend);
       const currentKbas = sumBy(channelCurrent, (row) => row['All KBAs']);
+      const currentLeads = sumBy(channelCurrent, (row) => row.Leads);
+      const currentPageVisits = sumBy(channelCurrent, (row) => row['Page Visits'] ?? 0);
       const currentImpressions = sumBy(channelCurrent, (row) => row.Impressions);
       const currentVcr = safeDivide(
         sumBy(channelCurrent, (row) => (row.VCR && row.VCR > 0 ? row.VCR * Math.max(row.Impressions, 0) : 0)),
@@ -2245,6 +2385,8 @@ export function buildInsights(
       const currentVideoPlays = sumBy(channelCurrent, (row) => row['Video Plays'] ?? 0);
       const priorSpend = sumBy(channelPrior, (row) => row.Spend);
       const priorKbas = sumBy(channelPrior, (row) => row['All KBAs']);
+      const priorLeads = sumBy(channelPrior, (row) => row.Leads);
+      const priorPageVisits = sumBy(channelPrior, (row) => row['Page Visits'] ?? 0);
       const priorImpressions = sumBy(channelPrior, (row) => row.Impressions);
       const priorVcr = safeDivide(
         sumBy(channelPrior, (row) => (row.VCR && row.VCR > 0 ? row.VCR * Math.max(row.Impressions, 0) : 0)),
@@ -2278,17 +2420,46 @@ export function buildInsights(
         currentPrimaryMetric && priorPrimaryMetric
           ? changePercent(currentPrimaryMetric.value, priorPrimaryMetric.value)
           : null;
+      const socialSecondaryKpis = socialSecondaryKpiNarrative(
+        channelId,
+        comparisonLabel,
+        { spend: currentSpend, leads: currentLeads, pageVisits: currentPageVisits },
+        { spend: priorSpend, leads: priorLeads, pageVisits: priorPageVisits },
+      );
 
       const totalEntityKbas = Math.max(
         sumBy(Array.from(entityCurrent.values()), (item) => item.kbas),
         1,
       );
-      const deliveryBullets = Array.from(entityCurrent.entries())
+      const deliveryGroupCurrent = isVideoChannel
+        ? groupDetailRows(
+            channelCurrent,
+            quarter.quarter,
+            quarter.year,
+            (row) => videoChartLabelForRow(row),
+          )
+        : entityCurrent;
+      const deliveryGroupPrior = isVideoChannel
+        ? groupDetailRows(
+            channelPrior,
+            comparisonQuarter.quarter,
+            comparisonQuarter.year,
+            (row) => videoChartLabelForRow(row),
+          )
+        : entityPrior;
+      const totalDeliveryMetric = Math.max(
+        isVideoChannel
+          ? sumBy(Array.from(deliveryGroupCurrent.values()), (item) => item.spend)
+          : sumBy(Array.from(deliveryGroupCurrent.values()), (item) => item.kbas),
+        1,
+      );
+
+      const platformDeliveryBullets = Array.from(deliveryGroupCurrent.entries())
         .map(([entity, metrics]) => ({
           entity,
           spend: metrics.spend,
-          kbaShare: safeDivide(metrics.kbas, totalEntityKbas),
-          spendShare: safeDivide(metrics.spend, Math.max(currentSpend, 1)),
+          kbaShare: safeDivide(metrics.kbas, totalDeliveryMetric),
+          spendShare: safeDivide(metrics.spend, isVideoChannel ? totalVideoSpendCurrent : Math.max(currentSpend, 1)),
           primaryMetric: primaryMetricForChannel(channelId, {
             spend: metrics.spend,
             kbas: metrics.kbas,
@@ -2298,7 +2469,7 @@ export function buildInsights(
             videoPlays: metrics.videoPlays,
           }),
           priorPrimaryMetric: (() => {
-            const priorMetrics = entityPrior.get(entity);
+            const priorMetrics = deliveryGroupPrior.get(entity);
             if (!priorMetrics) {
               return null;
             }
@@ -2318,6 +2489,9 @@ export function buildInsights(
           && (isPresentableInsightValue(item.kbaShare) || isPresentableInsightValue(item.spendShare)),
         )
         .sort((left, right) => {
+          if (right.spendShare !== left.spendShare) {
+            return right.spendShare - left.spendShare;
+          }
           if (right.kbaShare !== left.kbaShare) {
             return right.kbaShare - left.kbaShare;
           }
@@ -2327,26 +2501,42 @@ export function buildInsights(
           return (right.spendShare ?? 0) - (left.spendShare ?? 0);
         })
         .slice(0, channelId === 'social' || channelId === 'search' ? undefined : 2)
-        .map((item) => ({
-          text: [
-            isVideoChannel && item.primaryMetric
-              ? `${item.entity} delivered ${formatPercent(item.spendShare * 100)} of spend with a VCR of ${item.primaryMetric.formatter(item.primaryMetric.value)}.`
+        .map((item) => {
+          const videoDelta =
+            isVideoChannel && item.primaryMetric && item.priorPrimaryMetric
+              ? changePercent(item.primaryMetric.value, item.priorPrimaryMetric.value)
+              : null;
+
+          return {
+            text: [
+              isVideoChannel && item.primaryMetric
+                ? item.priorPrimaryMetric
+                  ? `${item.entity} delivered ${formatPercent(item.spendShare * 100)} of spend; ${currentQuarterLabel} VCR was ${item.primaryMetric.formatter(item.primaryMetric.value)} vs ${item.priorPrimaryMetric.formatter(item.priorPrimaryMetric.value)} in ${priorQuarterLabel}${videoDelta === null ? '.' : ` (${videoDelta >= 0 ? '+' : ''}${formatPercent(videoDelta)}).`}`
+                  : `${item.entity} delivered ${formatPercent(item.spendShare * 100)} of spend with a ${currentQuarterLabel} VCR of ${item.primaryMetric.formatter(item.primaryMetric.value)}.`
+                : isVideoChannel
+                  ? null
+                : item.primaryMetric
+                  ? `${item.entity} delivered ${formatPercent(item.kbaShare * 100)} of KBAs with a ${item.primaryMetric.label} of ${item.primaryMetric.formatter(item.primaryMetric.value)}.`
+                  : `${item.entity} delivered ${formatPercent(item.spendShare * 100)} of spend and ${formatPercent(item.kbaShare * 100)} of KBAs.`,
+              isVideoChannel ? null : deliveryComparisonNarrative(item.primaryMetric, item.priorPrimaryMetric, 'platform', comparisonLabel, priorQuarterLabel),
+            ].filter(Boolean).join(' '),
+            evidenceCount: channelCurrent.filter((row) => (isVideoChannel ? videoChartLabelForRow(row) === item.entity : entityLabelForInsight(row) === item.entity)).length,
+            metricValues: item.primaryMetric
+              ? isVideoChannel
+                ? [item.spendShare, item.primaryMetric.value, item.priorPrimaryMetric?.value, videoDelta]
+                : [item.kbaShare, item.primaryMetric.value]
               : isVideoChannel
-                ? null
-              : item.primaryMetric
-                ? `${item.entity} delivered ${formatPercent(item.kbaShare * 100)} of KBAs with a ${item.primaryMetric.label} of ${item.primaryMetric.formatter(item.primaryMetric.value)}.`
-                : `${item.entity} delivered ${formatPercent(item.spendShare * 100)} of spend and ${formatPercent(item.kbaShare * 100)} of KBAs.`,
-            deliveryComparisonNarrative(item.primaryMetric, item.priorPrimaryMetric, 'platform', comparisonLabel, priorQuarterLabel),
-          ].filter(Boolean).join(' '),
-          evidenceCount: channelCurrent.filter((row) => entityLabelForInsight(row) === item.entity).length,
-          metricValues: item.primaryMetric
-            ? isVideoChannel
-              ? [item.spendShare, item.primaryMetric.value]
-              : [item.kbaShare, item.primaryMetric.value]
-            : isVideoChannel
-              ? []
-              : [item.spendShare, item.kbaShare],
-        }));
+                ? []
+                : [item.spendShare, item.kbaShare],
+          };
+        });
+      const socialComparisonBullet =
+        channelId === 'social'
+          ? metaTikTokComparisonCandidate(channelCurrent, currentQuarterLabel)
+          : null;
+      const deliveryBullets = socialComparisonBullet
+        ? [...platformDeliveryBullets, socialComparisonBullet]
+        : platformDeliveryBullets;
 
       const campaignMetrics = Array.from(
         new Set([...campaignCurrent.keys(), ...campaignPrior.keys()]),
@@ -2485,8 +2675,8 @@ export function buildInsights(
                 .sort((left, right) => (right.spend !== left.spend ? right.spend - left.spend : right.kbas - left.kbas))
                 .map((campaign) => ({
                   text: isPresentableInsightValue(campaign.kbaShare)
-                    ? `${campaign.campaign} accounted for ${formatPercent(campaign.spendShare * 100)} of spend and ${formatPercent(campaign.kbaShare * 100)} of total KBAs${campaign.primaryMetric ? `, with a ${campaign.primaryMetric.label} of ${campaign.primaryMetric.formatter(campaign.primaryMetric.value)}` : ''}${campaign.secondaryMetric ? ` and ${campaign.secondaryMetric.label} of ${campaign.secondaryMetric.formatter(campaign.secondaryMetric.value)}` : ''}. ${deliveryComparisonNarrative(campaign.primaryMetric, campaign.priorPrimaryMetric, 'campaign', comparisonLabel, priorQuarterLabel) ?? ''}`.trim()
-                    : `${campaign.campaign} accounted for ${formatPercent(campaign.spendShare * 100)} of spend${campaign.primaryMetric ? `, with a ${campaign.primaryMetric.label} of ${campaign.primaryMetric.formatter(campaign.primaryMetric.value)}` : ''}${campaign.secondaryMetric ? ` and ${campaign.secondaryMetric.label} of ${campaign.secondaryMetric.formatter(campaign.secondaryMetric.value)}` : ''}. ${deliveryComparisonNarrative(campaign.primaryMetric, campaign.priorPrimaryMetric, 'campaign', comparisonLabel, priorQuarterLabel) ?? ''}`.trim(),
+                    ? `${campaign.campaign} accounted for ${formatPercent(campaign.spendShare * 100)} of spend and ${formatPercent(campaign.kbaShare * 100)} of total KBAs${campaign.primaryMetric ? `, with a ${campaign.primaryMetric.label} of ${campaign.primaryMetric.formatter(campaign.primaryMetric.value)}` : ''}. ${deliveryComparisonNarrative(campaign.primaryMetric, campaign.priorPrimaryMetric, 'campaign', comparisonLabel, priorQuarterLabel) ?? ''}`.trim()
+                    : `${campaign.campaign} accounted for ${formatPercent(campaign.spendShare * 100)} of spend${campaign.primaryMetric ? `, with a ${campaign.primaryMetric.label} of ${campaign.primaryMetric.formatter(campaign.primaryMetric.value)}` : ''}. ${deliveryComparisonNarrative(campaign.primaryMetric, campaign.priorPrimaryMetric, 'campaign', comparisonLabel, priorQuarterLabel) ?? ''}`.trim(),
                   evidenceCount: campaign.rowCount,
                   metricValues: [
                     campaign.spendShare,
@@ -2540,22 +2730,35 @@ export function buildInsights(
               },
             ]);
 
+      const quarterLearningNarrative = quarterLearningCombinedNarrative(
+        channelId,
+        titleCaseChannel(channelId),
+        quarter,
+        comparisonQuarter,
+        currentQuarterLabel,
+        priorQuarterLabel,
+        currentKbas,
+        priorKbas,
+        currentPrimaryMetric,
+        priorPrimaryMetric,
+      );
+      const quarterLearningText = quarterLearningNarrative
+        ? [quarterLearningNarrative, socialSecondaryKpis?.text].filter(Boolean).join(' ')
+        : null;
+
       const quarterLearningsBullets = groundedBullets([
         {
-          text: quarterLearningCombinedNarrative(
-            channelId,
-            titleCaseChannel(channelId),
-            quarter,
-            comparisonQuarter,
-            currentQuarterLabel,
-            priorQuarterLabel,
+          text: quarterLearningText,
+          evidenceCount: channelCurrent.length + channelPrior.length,
+          metricValues: [
             currentKbas,
             priorKbas,
-            currentPrimaryMetric,
-            priorPrimaryMetric,
-          ),
-          evidenceCount: channelCurrent.length + channelPrior.length,
-          metricValues: [currentKbas, priorKbas, yoyKbas, currentPrimaryMetric?.value, priorPrimaryMetric?.value, yoyCpKba],
+            yoyKbas,
+            currentPrimaryMetric?.value,
+            priorPrimaryMetric?.value,
+            yoyCpKba,
+            ...(socialSecondaryKpis?.metricValues ?? []),
+          ],
         },
       ]).slice(0, 3);
 
@@ -2933,7 +3136,7 @@ export async function buildDashboardResponse(scope: ScopeParams = {}): Promise<D
           currentQuarter.quarter,
           currentQuarter.year,
           channelId,
-          channel.id === 'video' ? 'videoEntity' : 'platform',
+          channel.id === 'video' ? 'videoChart' : 'platform',
         ),
       )
       .reduce<Array<{ label: string; spend: number; spendDisplay: string }>>((groups, current) => {
@@ -3444,7 +3647,7 @@ export async function buildDashboardResponse(scope: ScopeParams = {}): Promise<D
       negative: negativeEfficiencyDrivers,
     },
     appendix: {
-      title: 'Channel and platform totals in scope',
+      title: 'Performance by Platform',
       rows: appendixRows,
       totals: appendixTotals,
     },

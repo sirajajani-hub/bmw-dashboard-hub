@@ -107,19 +107,32 @@ Social channel rendering note:
 - the main Social card in the shell should consume `delivery` bullets so platform takeaways stay grouped under Social
 - the embedded `Social Campaigns` subsection should consume `campaignDelivery` bullets so campaign takeaways do not remain in the parent Social `Key Channel Takeaways` block
 - Social `delivery` bullets should include every active social platform in scope rather than truncating to only the top two platforms
+- Social `delivery` bullets should be ordered from highest current-quarter spend share to lowest spend share
+- when Social has current-quarter Meta and TikTok delivery with finite `CPKBA`, and TikTok `CPKBA` is lower than aggregated Meta `CPKBA`, append one platform-performance bullet comparing Meta `CPKBA`, TikTok `CPKBA`, and TikTok's relative efficiency gap
 - `delivery` bullets and embedded `campaignDelivery` bullets should append a comparison-quarter follow-on sentence when a comparable prior metric exists
 - for `CPKBA`, the appended sentence should describe media-efficiency change versus the comparison quarter and include the current and prior metric values
 - for `VCR`, the appended sentence should describe VCR movement versus the comparison quarter and include the current and prior metric values
 - Social `campaignDelivery` bullets should include one grounded bullet per allowed in-scope Social campaign, ordered from highest spend to lowest spend
 - Social `campaignDelivery` bullets should aggregate matching campaign labels across all social platforms before generating the takeaway text
 - Social `campaignDelivery` bullets should not use investment-share narrative such as `outperforming its share of investment` or `in line with its share of investment`
+- Social `campaignDelivery` bullets should not include `CTR`; they should stay focused on spend share, KBA share, `CPKBA`, and any comparison-quarter efficiency sentence
 - `Military` is an allowed Social campaign label and should render in `campaignDelivery` when present in source rows and spend is greater than `$0`
 
 Search channel rendering note:
 - the main Search card in the shell should consume the Search channel `delivery` bullets first
 - Search `delivery` bullets should include every in-scope Search platform instead of truncating to only the top two platforms
 - after the Search platform bullets, the shell should continue with the Search `campaignDelivery` bullets so the campaign-takeaway narrative remains visible
-5. `digital-display`
+
+Video card rendering note:
+- the main Video card in the shell should consume only the `delivery` bullets from `CTV` / `Connected TV/OTT` and `OLV` / `Online Video`
+- the Video card should not append `campaignDelivery`, `quarterLearnings`, `recommendations`, or `optimizations` bullets into its `Key Channel Takeaways` block
+- Video-card takeaway commentary such as `remained stable`, `decreased`, or `improved` must come from the platform-level `VCR` comparison versus the selected comparison quarter
+- Video-card `delivery` bullets must use the same grouping as the Video bar chart: if `Platform` is `YouTube` or `YouTube TV`, use `Platform`; otherwise use `Channel`
+- Video-card `delivery` bullets should follow this shape: `% spend`, current-quarter `VCR`, comparison-quarter `VCR`, and `% diff`
+- example: `Connected TV / OTT delivered 74.3% of spend; Q1 2026 VCR was 99.2% vs 98.8% in Q1 2025 (+0.4%).`
+
+Display channel rendering note:
+- `digital-display` is omitted from rendered insight channels
 
 If a channel has no valid rendered sections, it may be omitted.
 
@@ -228,8 +241,8 @@ Include when:
 - one or more entity groupings have meaningful share or meaningful primary metric values
 
 Selection priority:
-1. KBA share
-2. spend share
+1. spend share
+2. KBA share
 3. better primary metric when tied or near-tied
 
 Entity naming rules:
@@ -323,13 +336,15 @@ Exclude when:
 Selection priority:
 1. one channel-level summary sentence that leads with the channel KPI movement
 2. for Search and Social, include both volume and `CPKBA` in the same bullet when both are available
-3. the `KBAs` clause and the `CPKBA` clause must both preserve their original direction terms during any rewrite stage
+3. for Social, append secondary KPI performance when current and comparison values are available for `CPL` and `Lead rate`
+4. the `KBAs` clause and the `CPKBA` clause must both preserve their original direction terms during any rewrite stage
 
 Maximum:
 - 1 bullet
 
 Required content characteristics:
 - summarize quarter-level channel movement, not entity-level detail
+- Social secondary KPI commentary must compute `CPL` as `Spend / Leads` and `Lead rate` as `Leads / Page Visits`
 - stay tied to evidence
 - avoid unsupported future promises
 - support reuse in a client-facing quarterly deck
@@ -337,6 +352,7 @@ Required content characteristics:
 Allowed output shape:
 - `Search KBAs increased 132.0% year over year, reaching 290 in Q1 2026 vs 125 in Q1 2025. CPKBA remained stable year over year at $57.59 in Q1 2026 vs $58.40 in Q1 2025.`
 - `Social KBAs increased 21.1% quarter over quarter, reaching 378,383 in Q1 2026 vs 312,561 in Q4 2025. CPKBA efficiency decreased 39.8% quarter over quarter to $3.62 in Q1 2026 from $2.59 in Q4 2025.`
+- `Social KBAs increased 17.6% year over year, reaching 694,938 in Q1 2026 vs 591,111 in Q1 2025. CPKBA efficiency decreased 32.9% year over year to $4.07 in Q1 2026 from $3.06 in Q1 2025. Secondary KPIs: CPL came in at $864.00 (+21.0% YoY), and Lead rate improved 16.0% YoY despite spend scaling of +69.0% YoY.`
 - `Connected TV / OTT VCR remained stable year over year at 76.5% in Q1 2026 vs 73.5% in Q1 2025.`
 
 Forbidden output shape:
@@ -548,6 +564,7 @@ Mandatory rewrite stage:
 - current implementation emits server-side rewrite logs unless `OPENAI_INSIGHT_REWRITE_LOGGING=false`
 - rewritten bullets must preserve approved numbers and metric labels exactly
 - when the deterministic draft includes both `KBAs` and `CPKBA`, rewritten output must preserve both terms
+- when the deterministic draft includes Social secondary KPIs, rewritten output must preserve `CPL` and `Lead rate`
 - when the deterministic draft includes direction words for both volume and efficiency clauses, rewritten output must preserve both directional meanings
 - rewritten bullets must not introduce new claims, causal language, or forbidden metric substitutions
 - rewritten bullets must not add funnel stage / optimize-to parenthetical context when the deterministic draft omits it
@@ -557,7 +574,7 @@ UI emphasis rules:
 - numeric emphasis in rendered bullets is clause-aware, not bullet-wide
 - `CPKBA` values should render green only when the surrounding clause indicates favorable efficiency and red when the clause indicates unfavorable efficiency
 - mixed quarter-learning bullets may contain both green and red numbers in the same bullet when volume and efficiency move in different directions
-- exception: the top `Key Quarterly Takeaways` block and all media-card `Key Channel Takeaways` blocks should render numeric emphasis in neutral black, without semantic red/green highlighting
+- exception: the top `Key Quarterly Takeaways` block and all media-card takeaway blocks, including `Key Channel Takeaways` and `Key Campaign Takeaways`, should render numeric emphasis in neutral black, without semantic red/green highlighting
 
 ## Examples
 

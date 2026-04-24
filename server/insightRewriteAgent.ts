@@ -69,6 +69,7 @@ export function buildInsightRewriteSpec(
 ): InsightRewriteSpec {
   const metricLabels = ['VCR', 'CPKBA', 'CTR'].filter((label) => bullet.includes(label));
   const kbaSentence = sentenceContaining(bullet, /\bKBA\b|\bKBAs\b/);
+  const leadRateSentence = sentenceContaining(bullet, /\bLead rate\b/i);
   const requiredTerms = (() => {
     if (/remained stable/i.test(bullet)) {
       return ['stable'];
@@ -118,6 +119,19 @@ export function buildInsightRewriteSpec(
     requiredTerms.unshift(metricLabel);
   }
 
+  if (/\bCPL\b/.test(bullet)) {
+    requiredTerms.unshift('CPL');
+  }
+  if (leadRateSentence) {
+    requiredTerms.unshift('Lead rate');
+  }
+  if (/\bLead rate\b.*\bimproved\b/i.test(leadRateSentence)) {
+    requiredTerms.push('Lead rate improved');
+  }
+  if (/\bLead rate\b.*\bdecreased\b/i.test(leadRateSentence)) {
+    requiredTerms.push('Lead rate decreased');
+  }
+
   const recommendationVerb = /^(Scale|Hold|Optimize)\b/.exec(bullet)?.[1];
   if (section === 'recommendations' && recommendationVerb) {
     requiredTerms.unshift(recommendationVerb);
@@ -125,7 +139,9 @@ export function buildInsightRewriteSpec(
 
   const forbiddenTerms = ['worsened', ...CAUSAL_TERMS];
   if (metricLabels.includes('CPKBA')) {
-    forbiddenTerms.push('improved');
+    if (!/\bLead rate\b.*\bimproved\b/i.test(leadRateSentence)) {
+      forbiddenTerms.push('improved');
+    }
     forbiddenTerms.push('declined');
   }
   if (metricLabels.includes('VCR') || /Connected TV|Online Video/i.test(channel)) {

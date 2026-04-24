@@ -357,7 +357,12 @@ function collectCardHighlights(channels: ChannelInsight[] | undefined, cardLabel
       return normalized === 'connected tv / ott' || normalized === 'online video';
     });
 
-    return videoChannels.flatMap((channel) => collectHighlightBullets(channel, limit)).slice(0, limit);
+    const videoDeliveryBullets = videoChannels.flatMap((channel) => collectSectionBullets(videoChannels, channel.channel, 'delivery'));
+    if (videoDeliveryBullets.length > 0) {
+      return Array.from(new Set(videoDeliveryBullets)).slice(0, limit);
+    }
+
+    return videoChannels.flatMap((channel) => collectSectionBullets(videoChannels, channel.channel, 'variance')).slice(0, limit);
   }
 
   const matchedChannel = channels.find(
@@ -1031,7 +1036,7 @@ function MediaSpendPerformanceCardView({
                   <li key={`${sectionCard.id}-${bullet}`} className="flex gap-3 text-[14px] leading-7 text-[#364153]">
                     <span className="mt-[0.8rem] h-1.5 w-1.5 shrink-0 rounded-full bg-black" />
                     {renderInsightBullet(bullet, {
-                      toneMode: (options?.takeawaysTitle ?? 'Key Channel Takeaways') === 'Key Channel Takeaways' ? 'neutral' : 'semantic',
+                      toneMode: 'neutral',
                     })}
                   </li>
                 ))}
@@ -1066,7 +1071,7 @@ function MediaSpendPerformanceCardView({
                 <li key={`${sectionCard.id}-${bullet}`} className="flex gap-3 text-[14px] leading-7 text-[#364153]">
                   <span className="mt-[0.8rem] h-1.5 w-1.5 shrink-0 rounded-full bg-black" />
                   {renderInsightBullet(bullet, {
-                    toneMode: (options?.takeawaysTitle ?? 'Key Channel Takeaways') === 'Key Channel Takeaways' ? 'neutral' : 'semantic',
+                    toneMode: 'neutral',
                   })}
                 </li>
               ))}
@@ -1585,9 +1590,6 @@ export default function DashboardShell() {
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.24em] text-gray-400">Appendix Channel Tables</p>
                   <h2 className="mt-2 text-3xl font-bold tracking-tight text-black">{payload.appendix.title}</h2>
-                </div>
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                  Hierarchy: Region &gt; MACO &gt; Channel &gt; Platform
                 </div>
               </div>
 

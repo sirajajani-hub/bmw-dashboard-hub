@@ -149,6 +149,41 @@ Display:
 Directionality:
 - higher is better
 
+### Page Visits
+
+Meaning:
+- quarter total landing-page loads used as the denominator for Social lead-rate secondary KPI commentary
+
+Display:
+- compact number
+
+Directionality:
+- higher is contextual and should be interpreted with Leads and Lead rate
+
+### CPL
+
+Meaning:
+- cost per lead
+- computed as `Spend / Leads`
+
+Display:
+- currency
+
+Directionality:
+- lower is better
+
+### Lead Rate
+
+Meaning:
+- lead conversion rate from landing-page traffic
+- computed as `Leads / Page Visits`
+
+Display:
+- percentage
+
+Directionality:
+- higher is better
+
 ### Impressions
 
 Meaning:

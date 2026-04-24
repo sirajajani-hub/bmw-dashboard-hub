@@ -218,8 +218,14 @@ Expected detail shape includes:
 - Month
 - Spend
 - All KBAs
+- Page Visits
 - Leads
 - Impressions
+
+Media card grouping rule:
+- the `platformSpend` bars in media-spend performance cards should group spend by the scoped `Platform` dimension
+- the Video card should use a mixed grouping rule for its spend bars: if `Platform` is `YouTube` or `YouTube TV`, use `Platform`; otherwise group by `Channel`
+- the Video card should not switch to publisher or video-entity grouping for that chart
 
 Optional detail fields may also be requested when supported:
 - Site Name
@@ -428,6 +434,7 @@ Card metric rules:
 - Search card summary metrics must display `Clicks` instead of `Impressions`
 - Search card `Clicks` must use the quarter-scoped summed `Clicks` value from the dashboard payload, not a relabeled impressions total
 - Search card `Key Channel Takeaways` must begin with the Search channel `delivery` bullets so the block shows one platform-delivery bullet per in-scope Search platform
+- Search and Social platform-delivery takeaway bullets should be ordered by current-quarter spend share, highest to lowest
 - after the Search platform bullets, the card should continue rendering the existing Search `campaignDelivery` bullets so the prior campaign-takeaway behavior is preserved
 - Social and Campaign summary metrics continue to display `Impressions`
 - `Cost Per KBA` delta coloring must treat lower values as favorable
@@ -443,7 +450,10 @@ Operational note:
 
 Appendix table behavior:
 - appendix rows must expose the same metric set for both the selected current quarter and the selected comparison quarter
-- appendix row identity is the union of `channel + platform` keys across both quarters so comparison-only rows remain visible
+- appendix title should render as `Performance by Platform`
+- appendix should not render the hierarchy helper label above the table
+- appendix platform rows should render only when current-quarter spend for that `channel + platform` row is greater than `$0`
+- appendix rows should omit `Display` / `Digital Display` channel rows, including platform rows and channel subtotals
 - channel subtotal rows and the grand total row must include both quarter columns and reconcile to their scoped quarter totals
 - appendix metric columns should be ordered in side-by-side pairs by metric, so each current-quarter value sits immediately beside the corresponding comparison-quarter value
 - the appendix should fit within the desktop deck view without horizontal scrolling; prefer compact paired metric cells over a separate `Campaign Managed By` column
