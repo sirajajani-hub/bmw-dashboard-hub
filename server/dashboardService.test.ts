@@ -20,6 +20,7 @@ import {
 import {
   buildInsightRewriteSpec,
   buildVarianceRewriteSpec,
+  rewriteOutputSchema,
   rewriteInsightChannels,
   validateInsightRewrite,
 } from './insightRewriteAgent';
@@ -2270,6 +2271,21 @@ test('rewriteInsightChannels applies validated rewrites across insight sections 
 
   assert.deepEqual(rewritten[0].sections[0].bullets, ['VCR remained stable YoY at 84.0% vs 83.4%.']);
   assert.deepEqual(rewritten[0].sections[1].bullets, ['Hulu delivered 66.7% of spend with a VCR of 84.0%.']);
+});
+
+test('rewrite output schema accepts nullable rejection reason from model output', () => {
+  assert.deepEqual(
+    rewriteOutputSchema.parse({
+      sentence: 'VCR remained stable YoY at 84.0% vs 83.4%.',
+      rejected: false,
+      rejectionReason: null,
+    }),
+    {
+      sentence: 'VCR remained stable YoY at 84.0% vs 83.4%.',
+      rejected: false,
+      rejectionReason: null,
+    },
+  );
 });
 
 test('rewriteInsightChannels throws when a mandatory rewrite fails', async () => {

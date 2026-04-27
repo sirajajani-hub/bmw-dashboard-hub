@@ -6,11 +6,11 @@ import type { ChannelInsight, InsightSection } from './dashboardService';
 const DEFAULT_MODEL = 'gpt-5-nano';
 const CAUSAL_TERMS = ['because', 'due to', 'driven by', 'caused by', 'as a result of', 'owing to'];
 
-const rewriteOutputSchema = z.object({
+export const rewriteOutputSchema = z.object({
   sentence: z.string(),
   usedTerms: z.array(z.string()).optional(),
   rejected: z.boolean().optional(),
-  rejectionReason: z.string().optional(),
+  rejectionReason: z.string().nullable().optional(),
 });
 
 export type InsightRewriteSpec = {
