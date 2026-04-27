@@ -109,7 +109,7 @@ export function buildInsightRewriteSpec(
     requiredTerms.push('KBAs decreased');
   }
   if (/\bKBAs\b.*\bdeclined\b/i.test(kbaSentence)) {
-    requiredTerms.push('KBAs declined');
+    requiredTerms.push('KBAs decreased');
   }
   if (/\bKBAs\b.*\bremained stable\b/i.test(kbaSentence)) {
     requiredTerms.push('KBAs remained stable');
@@ -142,7 +142,7 @@ export function buildInsightRewriteSpec(
     if (!/\bLead rate\b.*\bimproved\b/i.test(leadRateSentence)) {
       forbiddenTerms.push('improved');
     }
-    forbiddenTerms.push('declined');
+    forbiddenTerms.push('CPKBA declined', 'CP KBA declined');
   }
   if (metricLabels.includes('VCR') || /Connected TV|Online Video/i.test(channel)) {
     forbiddenTerms.push('KBA', 'KBAs', 'CPKBA', 'CP KBA');
@@ -183,7 +183,7 @@ export function validateInsightRewrite(spec: InsightRewriteSpec, candidate: stri
   }
 
   for (const term of spec.requiredTerms) {
-    if (!lower.includes(term.toLowerCase())) {
+    if (!requiredTermIsPresent(term, trimmed)) {
       return { valid: false, reason: `missing required term: ${term}` } as const;
     }
   }
@@ -198,6 +198,32 @@ export function validateInsightRewrite(spec: InsightRewriteSpec, candidate: stri
   }
 
   return { valid: true } as const;
+}
+
+function requiredTermIsPresent(term: string, candidate: string) {
+  const lower = candidate.toLowerCase();
+  const normalizedTerm = term.toLowerCase();
+
+  if (normalizedTerm === 'increased') {
+    return /\b(increased|rose|grew)\b/i.test(candidate);
+  }
+  if (normalizedTerm === 'decreased' || normalizedTerm === 'declined') {
+    return /\b(decreased|declined|fell|dropped)\b/i.test(candidate);
+  }
+  if (normalizedTerm === 'kbas increased') {
+    return /\bKBAs\b.*\b(increased|rose|grew)\b/i.test(candidate);
+  }
+  if (normalizedTerm === 'kbas decreased' || normalizedTerm === 'kbas declined') {
+    return /\bKBAs\b.*\b(decreased|declined|fell|dropped)\b/i.test(candidate);
+  }
+  if (normalizedTerm === 'lead rate decreased') {
+    return /\bLead rate\b.*\b(decreased|declined|fell|dropped)\b/i.test(candidate);
+  }
+  if (normalizedTerm === 'lead rate improved') {
+    return /\bLead rate\b.*\b(improved|increased|rose|grew)\b/i.test(candidate);
+  }
+
+  return lower.includes(normalizedTerm);
 }
 
 function resolveInsightRewriteConfig(requireApiKey = true): InsightRewriteConfig {

@@ -386,17 +386,17 @@ function formatSpendShareClause(
   if (!matched) return null;
 
   const currentShare = matched.currentSpendShare * 100;
-  const shareDeltaPercent =
-    matched.priorSpendShare > 0
-      ? ((matched.currentSpendShare - matched.priorSpendShare) / matched.priorSpendShare) * 100
+  const spendDeltaPercent =
+    matched.priorSpend > 0
+      ? ((matched.currentSpend - matched.priorSpend) / matched.priorSpend) * 100
       : null;
-  const absoluteDelta = shareDeltaPercent === null ? null : Math.abs(shareDeltaPercent);
+  const absoluteDelta = spendDeltaPercent === null ? null : Math.abs(spendDeltaPercent);
   const movement =
     absoluteDelta === null
       ? `vs ${comparisonQuarterLabel}`
       : absoluteDelta < 0.05
       ? `flat vs ${comparisonQuarterLabel}`
-      : `${shareDeltaPercent > 0 ? 'up' : 'down'} ${Math.round(absoluteDelta)}% vs ${comparisonQuarterLabel}`;
+      : `with spend ${spendDeltaPercent > 0 ? 'up' : 'down'} ${Math.round(absoluteDelta)}% vs ${comparisonQuarterLabel}`;
 
   return `This represented ${currentShare.toFixed(1)}% of total spend, ${movement}.`;
 }

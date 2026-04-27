@@ -584,7 +584,7 @@ function formatChangeVsLy(current: number, prior: number, priorDisplay: string) 
     return 'No activity';
   }
 
-  const delta = Math.round(((current - prior) / Math.max(prior, 1)) * 100);
+  const delta = Math.round(((current - prior) / prior) * 100);
   return `${delta > 0 ? '+' : ''}${delta}% vs LY (${priorDisplay})`;
 }
 
@@ -1056,7 +1056,7 @@ function groupDetailRows(
     const key = keyGetter(row);
     const current = map.get(key) ?? {
       channel: row.Channel || 'Unassigned',
-      platform: row.Platform || 'Unassigned',
+      platform: platformLabel(row.Platform),
       campaignManagedBy: row['Campaign Managed By'] || 'Unassigned',
       siteName: row['Site Name'] || '',
       placementType: row['Campaign / Placement Type'] || '',
@@ -1113,7 +1113,7 @@ function emptyAppendixAggregate(
 ) {
   return {
     channel: overrides.channel ?? 'Unassigned',
-    platform: overrides.platform ?? 'Unassigned',
+    platform: platformLabel(overrides.platform),
     spend: 0,
     kbas: 0,
     byoStarts: 0,
@@ -1171,7 +1171,7 @@ function formatAppendixDelta(current: number, prior: number) {
     return '0%';
   }
 
-  const delta = Math.round(((current - prior) / Math.max(prior, 1)) * 100);
+  const delta = Math.round(((current - prior) / prior) * 100);
   return `${delta > 0 ? '+' : ''}${delta}%`;
 }
 
@@ -1209,7 +1209,7 @@ export function buildCampaignAppendixRows(
       return {
         rowType: 'platform',
         channel: labelSource.channel,
-        platform: labelSource.platform,
+        platform: platformLabel(labelSource.platform),
         current: buildAppendixMetricDisplays({
           ...(current ?? emptyAppendixAggregate({
             channel: labelSource.channel,
@@ -1481,16 +1481,25 @@ function titleCaseChannel(channel: string) {
   return channel;
 }
 
+function platformLabel(value: string | undefined) {
+  const text = (value ?? '').trim();
+  if (!text) {
+    return 'Unassigned';
+  }
+
+  return /^zeta$/i.test(text) ? 'Programmatic' : text;
+}
+
 export function entityLabelForInsight(row: DetailRow) {
   const normalized = normalizeChannel(row.Channel || '');
   if (normalized === 'search' || normalized === 'social') {
-    return row.Platform || 'Unassigned';
+    return platformLabel(row.Platform);
   }
 
   if (normalized === 'ctv' || normalized === 'olv') {
     const siteName = (row['Site Name'] || '').trim();
     const placementType = cleanPlacementType(row['Campaign / Placement Type']);
-    const platform = (row.Platform || '').trim();
+    const platform = platformLabel(row.Platform);
 
     if (siteName) {
       if (/dv360/i.test(siteName)) {
@@ -1513,7 +1522,7 @@ export function entityLabelForInsight(row: DetailRow) {
     return 'Unassigned';
   }
 
-  return row.Platform || row['Site Name'] || 'Unassigned';
+  return (row.Platform ?? '').trim() ? platformLabel(row.Platform) : row['Site Name'] || 'Unassigned';
 }
 
 function isPresentableInsightValue(value: number) {
@@ -1903,72 +1912,6 @@ function quarterLearningCombinedNarrative(
   return volumeNarrative ?? efficiencyNarrative;
 }
 
-function abbreviatedComparisonLabel(comparisonLabel: string) {
-  if (comparisonLabel === 'year over year') {
-    return 'YoY';
-  }
-
-  if (comparisonLabel === 'quarter over quarter') {
-    return 'QoQ';
-  }
-
-  return 'vs comparison quarter';
-}
-
-function socialSecondaryKpiNarrative(
-  channelId: string,
-  comparisonLabel: string,
-  current: { spend: number; leads: number; pageVisits: number },
-  prior: { spend: number; leads: number; pageVisits: number },
-) {
-  if (channelId !== 'social') {
-    return null;
-  }
-
-  const currentCpl = safeDivide(current.spend, current.leads);
-  const priorCpl = safeDivide(prior.spend, prior.leads);
-  const currentLeadRate = safeDivide(current.leads, current.pageVisits);
-  const priorLeadRate = safeDivide(prior.leads, prior.pageVisits);
-  const cplDelta = changePercent(currentCpl, priorCpl);
-  const leadRateDelta = changePercent(currentLeadRate, priorLeadRate);
-  const spendDelta = changePercent(current.spend, prior.spend);
-
-  if (
-    !isPresentableInsightValue(currentCpl) ||
-    !isPresentableInsightValue(priorCpl) ||
-    !isPresentableInsightValue(currentLeadRate) ||
-    !isPresentableInsightValue(priorLeadRate) ||
-    cplDelta === null ||
-    leadRateDelta === null ||
-    spendDelta === null
-  ) {
-    return null;
-  }
-
-  const metricValues = [
-    currentCpl,
-    priorCpl,
-    currentLeadRate,
-    priorLeadRate,
-    cplDelta,
-    leadRateDelta,
-    spendDelta,
-  ];
-
-  const shortComparisonLabel = abbreviatedComparisonLabel(comparisonLabel);
-  const cplDeltaLabel = `${cplDelta > 0 ? '+' : ''}${formatPercent(cplDelta)}`;
-  const leadRateMovement = leadRateDelta >= 0 ? 'improved' : 'decreased';
-  const spendContext =
-    spendDelta >= 0
-      ? `despite spend scaling of +${formatPercent(spendDelta)} ${shortComparisonLabel}`
-      : `while spend decreased ${formatPercent(Math.abs(spendDelta))} ${shortComparisonLabel}`;
-
-  return {
-    text: `Secondary KPIs: CPL came in at ${formatCurrency(currentCpl)} (${cplDeltaLabel} ${shortComparisonLabel}), and Lead rate ${leadRateMovement} ${formatPercent(Math.abs(leadRateDelta))} ${shortComparisonLabel} ${spendContext}.`,
-    metricValues,
-  };
-}
-
 function lowMetricNarrative(metric: InsightMetric) {
   if (metric.label === 'VCR') {
     return `a low ${metric.label}`;
@@ -2065,16 +2008,16 @@ export function aggregateChannelPlatforms(
     return monthInQuarter(month, quarter, year) && normalizeChannel(row.Channel || '') === channelId;
   });
 
-    const grouped = new Map<string, { label: string; spend: number }>();
+  const grouped = new Map<string, { label: string; spend: number }>();
   for (const row of scopedRows) {
-    const platformLabel = (row.Platform || '').trim();
+    const platform = platformLabel(row.Platform);
     const channelLabel = (row.Channel || '').trim();
     const label =
       labelField === 'videoEntity'
         ? (row.Publisher || '').trim() || entityLabelForInsight(row)
         : labelField === 'videoChart'
           ? videoChartLabelForRow(row)
-          : platformLabel || 'Unassigned';
+          : platform;
     const current = grouped.get(label) ?? { label, spend: 0 };
     current.spend += row.Spend;
     grouped.set(label, current);
@@ -2090,10 +2033,10 @@ export function aggregateChannelPlatforms(
 }
 
 function videoChartLabelForRow(row: DetailRow) {
-  const platformLabel = (row.Platform || '').trim();
+  const platform = platformLabel(row.Platform);
   const channelLabel = (row.Channel || '').trim();
-  return platformLabel === 'YouTube' || platformLabel === 'YouTube TV'
-    ? platformLabel
+  return platform === 'YouTube' || platform === 'YouTube TV'
+    ? platform
     : channelLabel || 'Unassigned';
 }
 
@@ -2374,8 +2317,6 @@ export function buildInsights(
 
       const currentSpend = sumBy(channelCurrent, (row) => row.Spend);
       const currentKbas = sumBy(channelCurrent, (row) => row['All KBAs']);
-      const currentLeads = sumBy(channelCurrent, (row) => row.Leads);
-      const currentPageVisits = sumBy(channelCurrent, (row) => row['Page Visits'] ?? 0);
       const currentImpressions = sumBy(channelCurrent, (row) => row.Impressions);
       const currentVcr = safeDivide(
         sumBy(channelCurrent, (row) => (row.VCR && row.VCR > 0 ? row.VCR * Math.max(row.Impressions, 0) : 0)),
@@ -2385,8 +2326,6 @@ export function buildInsights(
       const currentVideoPlays = sumBy(channelCurrent, (row) => row['Video Plays'] ?? 0);
       const priorSpend = sumBy(channelPrior, (row) => row.Spend);
       const priorKbas = sumBy(channelPrior, (row) => row['All KBAs']);
-      const priorLeads = sumBy(channelPrior, (row) => row.Leads);
-      const priorPageVisits = sumBy(channelPrior, (row) => row['Page Visits'] ?? 0);
       const priorImpressions = sumBy(channelPrior, (row) => row.Impressions);
       const priorVcr = safeDivide(
         sumBy(channelPrior, (row) => (row.VCR && row.VCR > 0 ? row.VCR * Math.max(row.Impressions, 0) : 0)),
@@ -2420,13 +2359,6 @@ export function buildInsights(
         currentPrimaryMetric && priorPrimaryMetric
           ? changePercent(currentPrimaryMetric.value, priorPrimaryMetric.value)
           : null;
-      const socialSecondaryKpis = socialSecondaryKpiNarrative(
-        channelId,
-        comparisonLabel,
-        { spend: currentSpend, leads: currentLeads, pageVisits: currentPageVisits },
-        { spend: priorSpend, leads: priorLeads, pageVisits: priorPageVisits },
-      );
-
       const totalEntityKbas = Math.max(
         sumBy(Array.from(entityCurrent.values()), (item) => item.kbas),
         1,
@@ -2742,9 +2674,7 @@ export function buildInsights(
         currentPrimaryMetric,
         priorPrimaryMetric,
       );
-      const quarterLearningText = quarterLearningNarrative
-        ? [quarterLearningNarrative, socialSecondaryKpis?.text].filter(Boolean).join(' ')
-        : null;
+      const quarterLearningText = quarterLearningNarrative;
 
       const quarterLearningsBullets = groundedBullets([
         {
@@ -2757,7 +2687,6 @@ export function buildInsights(
             currentPrimaryMetric?.value,
             priorPrimaryMetric?.value,
             yoyCpKba,
-            ...(socialSecondaryKpis?.metricValues ?? []),
           ],
         },
       ]).slice(0, 3);
@@ -3323,13 +3252,13 @@ export async function buildDashboardResponse(scope: ScopeParams = {}): Promise<D
     detail.data,
     currentQuarter.quarter,
     currentQuarter.year,
-    (row) => `${row.Channel || 'Unassigned'}::${row.Platform || 'Unassigned'}`,
+    (row) => `${row.Channel || 'Unassigned'}::${platformLabel(row.Platform)}`,
   );
   const priorPlatformMap = groupDetailRows(
     detail.data,
     comparisonQuarter.quarter,
     comparisonQuarter.year,
-    (row) => `${row.Channel || 'Unassigned'}::${row.Platform || 'Unassigned'}`,
+    (row) => `${row.Channel || 'Unassigned'}::${platformLabel(row.Platform)}`,
   );
   const driverCandidates = Array.from(currentCampaignMap.entries()).map(([key, current]) => {
     const prior = priorCampaignMap.get(key) ?? {

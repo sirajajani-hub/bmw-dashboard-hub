@@ -247,6 +247,7 @@ Selection priority:
 
 Entity naming rules:
 - use the most meaningful platform or site-level entity for the channel
+- label raw `Platform` value `Zeta` as `Programmatic`
 - for `CTV` / `Connected TV/OTT` and `OLV` / `Online Video`, use `Site Name` instead of ad-server labels such as `DV360` or `CM360`
 - if the resolved `Site Name` contains `DV360`, use `Placement Type` instead
 - do not output `DV360` or `CM360` as the named delivery entity for `CTV` / `Connected TV/OTT` and `OLV` / `Online Video`
@@ -336,15 +337,13 @@ Exclude when:
 Selection priority:
 1. one channel-level summary sentence that leads with the channel KPI movement
 2. for Search and Social, include both volume and `CPKBA` in the same bullet when both are available
-3. for Social, append secondary KPI performance when current and comparison values are available for `CPL` and `Lead rate`
-4. the `KBAs` clause and the `CPKBA` clause must both preserve their original direction terms during any rewrite stage
+3. the `KBAs` clause and the `CPKBA` clause must both preserve their original direction terms during any rewrite stage
 
 Maximum:
 - 1 bullet
 
 Required content characteristics:
 - summarize quarter-level channel movement, not entity-level detail
-- Social secondary KPI commentary must compute `CPL` as `Spend / Leads` and `Lead rate` as `Leads / Page Visits`
 - stay tied to evidence
 - avoid unsupported future promises
 - support reuse in a client-facing quarterly deck
@@ -352,7 +351,7 @@ Required content characteristics:
 Allowed output shape:
 - `Search KBAs increased 132.0% year over year, reaching 290 in Q1 2026 vs 125 in Q1 2025. CPKBA remained stable year over year at $57.59 in Q1 2026 vs $58.40 in Q1 2025.`
 - `Social KBAs increased 21.1% quarter over quarter, reaching 378,383 in Q1 2026 vs 312,561 in Q4 2025. CPKBA efficiency decreased 39.8% quarter over quarter to $3.62 in Q1 2026 from $2.59 in Q4 2025.`
-- `Social KBAs increased 17.6% year over year, reaching 694,938 in Q1 2026 vs 591,111 in Q1 2025. CPKBA efficiency decreased 32.9% year over year to $4.07 in Q1 2026 from $3.06 in Q1 2025. Secondary KPIs: CPL came in at $864.00 (+21.0% YoY), and Lead rate improved 16.0% YoY despite spend scaling of +69.0% YoY.`
+- `Social KBAs increased 17.6% year over year, reaching 694,938 in Q1 2026 vs 591,111 in Q1 2025. CPKBA efficiency decreased 32.9% year over year to $4.07 in Q1 2026 from $3.06 in Q1 2025.`
 - `Connected TV / OTT VCR remained stable year over year at 76.5% in Q1 2026 vs 73.5% in Q1 2025.`
 
 Forbidden output shape:
@@ -369,22 +368,22 @@ Purpose:
 
 Inputs:
 - rendered channel `quarterLearnings` bullets
-- media spend performance card `spend` metrics and their comparison labels
+- channel summary spend totals, spend-share fields, and their comparison labels
 
 Current runtime behavior:
 - prefer the first `quarterLearnings` bullet from each rendered channel, ordered by highest current-quarter spend to lowest
 - if the summary is short, backfill with additional `quarterLearnings` bullets before using lower-priority highlight sections
-- when channel spend-share data is available, append a second sentence to each channel summary item that states the current-quarter share of total spend and the relative percentage change in that spend share versus the comparison quarter
+- when channel summary data is available, append a second sentence to each channel summary item that states the current-quarter share of total spend and the channel spend change versus the comparison quarter
 
 Allowed output shape:
-- `Connected TV / OTT: Connected TV / OTT VCR remained stable year over year at 99.2% in Q1 2026 vs 98.8% in Q1 2025. This represented 14.1% of total spend, down 2% vs Q1 2025.`
+- `Connected TV / OTT: Connected TV / OTT VCR remained stable year over year at 99.2% in Q1 2026 vs 98.8% in Q1 2025. This represented 14.1% of total spend, with spend up 33% vs Q1 2025.`
 
 Rules:
 - derive spend movement from structured channel card spend metrics, not by parsing insight prose
 - keep the bullet channel-level; do not introduce campaign, platform, or publisher detail
 - preserve metric-direction color semantics for numeric emphasis inside the bullet
-- derive channel spend-share commentary from structured `channelSummary` spend-share fields rather than from formatted display strings
-- express spend-share movement as percent up/down versus the comparison quarter, not percentage points
+- derive channel spend commentary from structured `channelSummary` fields rather than from formatted display strings
+- express spend movement as the same spend delta shown in the data table, not the change in spend share or percentage points
 
 ### Optimizations
 
@@ -564,7 +563,8 @@ Mandatory rewrite stage:
 - current implementation emits server-side rewrite logs unless `OPENAI_INSIGHT_REWRITE_LOGGING=false`
 - rewritten bullets must preserve approved numbers and metric labels exactly
 - when the deterministic draft includes both `KBAs` and `CPKBA`, rewritten output must preserve both terms
-- when the deterministic draft includes Social secondary KPIs, rewritten output must preserve `CPL` and `Lead rate`
+- `CPKBA declined` remains forbidden legacy wording, but `KBAs declined` is valid when the volume clause declines
+- direction validation may accept clear synonyms such as `rose`, but vague replacements such as `reached` do not satisfy direction requirements
 - when the deterministic draft includes direction words for both volume and efficiency clauses, rewritten output must preserve both directional meanings
 - rewritten bullets must not introduce new claims, causal language, or forbidden metric substitutions
 - rewritten bullets must not add funnel stage / optimize-to parenthetical context when the deterministic draft omits it

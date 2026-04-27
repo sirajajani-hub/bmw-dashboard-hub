@@ -224,6 +224,7 @@ Expected detail shape includes:
 
 Media card grouping rule:
 - the `platformSpend` bars in media-spend performance cards should group spend by the scoped `Platform` dimension
+- raw `Platform` value `Zeta` should be labeled and grouped as `Programmatic` across dashboard output
 - the Video card should use a mixed grouping rule for its spend bars: if `Platform` is `YouTube` or `YouTube TV`, use `Platform`; otherwise group by `Channel`
 - the Video card should not switch to publisher or video-entity grouping for that chart
 
@@ -452,6 +453,7 @@ Appendix table behavior:
 - appendix rows must expose the same metric set for both the selected current quarter and the selected comparison quarter
 - appendix title should render as `Performance by Platform`
 - appendix should not render the hierarchy helper label above the table
+- appendix rows should label and group raw `Zeta` platform data as `Programmatic`
 - appendix platform rows should render only when current-quarter spend for that `channel + platform` row is greater than `$0`
 - appendix rows should omit `Display` / `Digital Display` channel rows, including platform rows and channel subtotals
 - channel subtotal rows and the grand total row must include both quarter columns and reconcile to their scoped quarter totals

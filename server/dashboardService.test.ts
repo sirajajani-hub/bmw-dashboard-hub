@@ -5,6 +5,8 @@ import {
   aggregateChannelPlatforms,
   buildCampaignAppendixRows,
   buildInsights,
+  buildAppendixMetricDisplays,
+  buildNonVideoMediaCardMetrics,
   buildQaChecks,
   chooseObjectiveMetric,
   entityLabelForInsight,
@@ -141,6 +143,28 @@ test('aggregateChannelPlatforms can group video spend by Platform', () => {
   assert.deepEqual(aggregateChannelPlatforms(rows, CURRENT_QUARTER.quarter, CURRENT_QUARTER.year, 'olv'), [
     { label: 'CM360', spend: 300, spendDisplay: '$300.00' },
   ]);
+});
+
+test('aggregateChannelPlatforms labels Zeta as Programmatic globally', () => {
+  const rows: DetailRow[] = [
+    makeRow({
+      Channel: 'Connected TV / OTT',
+      Month: '2026-01-01',
+      Platform: 'Zeta',
+      Spend: 400,
+    }),
+    makeRow({
+      Channel: 'Connected TV / OTT',
+      Month: '2026-02-01',
+      Platform: 'Programmatic',
+      Spend: 600,
+    }),
+  ];
+
+  assert.deepEqual(aggregateChannelPlatforms(rows, CURRENT_QUARTER.quarter, CURRENT_QUARTER.year, 'ctv'), [
+    { label: 'Programmatic', spend: 1000, spendDisplay: '$1,000.00' },
+  ]);
+  assert.equal(entityLabelForInsight(makeRow({ Channel: 'Search', Platform: 'Zeta' })), 'Programmatic');
 });
 
 test('aggregateChannelPlatforms uses channel grouping for video chart except YouTube platforms', () => {
@@ -818,6 +842,44 @@ test('buildQaChecks warns when insight audit counters do not reconcile', () => {
 
   assert.equal(checks.find((check) => check.id === 'insight-evidence')?.status, 'WARN');
   assert.equal(checks.find((check) => check.id === 'claim-reconciliation')?.status, 'WARN');
+});
+
+test('media card and appendix deltas use fractional prior values as the denominator', () => {
+  const socialMetrics = buildNonVideoMediaCardMetrics({
+    channelId: 'social',
+    spendCurrent: 100,
+    spendPrior: 50,
+    kbasCurrent: 200,
+    kbasPrior: 100,
+    clicksCurrent: 0,
+    clicksPrior: 0,
+    impressionsCurrent: 1000,
+    impressionsPrior: 500,
+    cpKbaCurrent: 0.75,
+    cpKbaPrior: 0.5,
+  });
+
+  assert.equal(socialMetrics.find((metric) => metric.id === 'cpkba')?.changeLabel, '+50% vs LY ($0.50)');
+
+  const appendixMetrics = buildAppendixMetricDisplays({
+    spend: 75,
+    priorSpend: 50,
+    kbas: 100,
+    priorKbas: 50,
+    priorCpKba: 0.5,
+    impressions: 1000,
+    priorImpressions: 500,
+    byoStarts: 0,
+    priorByoStarts: 0,
+    byoCompletes: 0,
+    priorByoCompletes: 0,
+    inventorySearches: 0,
+    priorInventorySearches: 0,
+    leads: 0,
+    priorLeads: 0,
+  });
+
+  assert.equal(appendixMetrics.cpkbaDeltaLabel, '+50%');
 });
 
 test('buildInsights returns the canonical CTV section copy for the current fixture', () => {
@@ -1539,7 +1601,7 @@ test('buildInsights adds a Meta versus TikTok platform efficiency comparison', (
   ));
 });
 
-test('buildInsights adds Social secondary KPI performance to quarter learnings', () => {
+test('buildInsights keeps Social quarter learnings focused on KBAs and CPKBA', () => {
   const rows: DetailRow[] = [
     makeRow({
       Channel: 'Social',
@@ -1572,8 +1634,10 @@ test('buildInsights adds Social secondary KPI performance to quarter learnings',
 
   assert.equal(
     sections.quarterLearnings[0],
-    'Social KBAs increased 40.0% year over year, reaching 1,400 in Q1 2026 vs 1,000 in Q1 2025. CPKBA efficiency decreased 20.7% year over year to $12.07 in Q1 2026 from $10.00 in Q1 2025. Secondary KPIs: CPL came in at $120.71 (+20.7% YoY), and Lead rate improved 16.0% YoY despite spend scaling of +69.0% YoY.',
+    'Social KBAs increased 40.0% year over year, reaching 1,400 in Q1 2026 vs 1,000 in Q1 2025. CPKBA efficiency decreased 20.7% year over year to $12.07 in Q1 2026 from $10.00 in Q1 2025.',
   );
+  assert.ok(!sections.quarterLearnings[0].includes('CPL'));
+  assert.ok(!sections.quarterLearnings[0].includes('Lead rate'));
 });
 
 test('buildInsights excludes zero-spend social platforms and campaigns from delivery sections', () => {
@@ -1932,14 +1996,14 @@ test('buildVarianceRewriteSpec preserves CPKBA efficiency wording and rejects le
   assert.ok(spec.requiredTerms.includes('CPKBA'));
   assert.ok(spec.requiredTerms.includes('efficiency decreased'));
   assert.ok(spec.forbiddenTerms.includes('improved'));
-  assert.ok(spec.forbiddenTerms.includes('declined'));
+  assert.ok(spec.forbiddenTerms.includes('CPKBA declined'));
   assert.deepEqual(validateInsightRewrite(spec, 'CPKBA improved by 33.0% YoY to $4.07 from $3.06.'), {
     valid: false,
     reason: 'forbidden term: improved',
   });
   assert.deepEqual(validateInsightRewrite(spec, 'CPKBA declined 33.0% YoY to $4.07 from $3.06.'), {
     valid: false,
-    reason: 'forbidden term: declined',
+    reason: 'forbidden term: CPKBA declined',
   });
 });
 
@@ -1968,6 +2032,13 @@ test('buildInsightRewriteSpec preserves both KBA volume and CPKBA terms in quart
       valid: false,
       reason: 'missing required term: KBAs increased',
     },
+  );
+  assert.deepEqual(
+    validateInsightRewrite(
+      spec,
+      'Social KBAs rose 21.1% quarter over quarter to 378,383 in Q1 2026 vs 312,561 in Q4 2025, while CPKBA efficiency decreased 39.8% quarter over quarter to $3.62 in Q1 2026 from $2.59 in Q4 2025.',
+    ),
+    { valid: true },
   );
 });
 
@@ -2009,9 +2080,37 @@ test('buildInsightRewriteSpec does not infer a KBA decrease requirement from a l
   );
 });
 
+test('buildInsightRewriteSpec allows KBA decline wording alongside CPKBA efficiency wording', () => {
+  const bullet =
+    'Social KBAs declined 15.0% year over year, reaching 850 in Q1 2026 vs 1,000 in Q1 2025. CPKBA efficiency decreased 20.0% year over year to $12.00 in Q1 2026 from $10.00 in Q1 2025.';
+  const spec = buildInsightRewriteSpec('Social', 'quarterLearnings', bullet);
+
+  assert.ok(spec.requiredTerms.includes('KBAs decreased'));
+  assert.ok(spec.requiredTerms.includes('efficiency decreased'));
+  assert.ok(!spec.forbiddenTerms.includes('declined'));
+  assert.deepEqual(
+    validateInsightRewrite(
+      spec,
+      'Social KBAs declined 15.0% year over year to 850 in Q1 2026 from 1,000 in Q1 2025, while CPKBA efficiency decreased 20.0% year over year to $12.00 from $10.00.',
+    ),
+    { valid: true },
+  );
+  assert.deepEqual(
+    validateInsightRewrite(
+      spec,
+      'Social KBAs declined 15.0% year over year to 850 in Q1 2026 from 1,000 in Q1 2025, while CPKBA declined 20.0% year over year to $12.00 from $10.00.',
+    ),
+    {
+      valid: false,
+      reason: 'forbidden term: CPKBA declined',
+    },
+  );
+});
+
 test('buildCampaignAppendixRows includes both quarter columns and filters zero-spend current platform rows', () => {
   const currentChannelMap = new Map([
     ['Search', { channel: 'Search', platform: 'Search - Google Ads', spend: 100, kbas: 20, byoStarts: 10, byoCompletes: 5, inventorySearches: 8, leads: 2, impressions: 1000 }],
+    ['Connected TV / OTT', { channel: 'Connected TV / OTT', platform: 'Zeta', spend: 70, kbas: 7, byoStarts: 3, byoCompletes: 2, inventorySearches: 1, leads: 1, impressions: 600 }],
     ['Digital Display', { channel: 'Digital Display', platform: 'DV360', spend: 50, kbas: 5, byoStarts: 2, byoCompletes: 1, inventorySearches: 3, leads: 1, impressions: 500 }],
   ]);
   const comparisonChannelMap = new Map([
@@ -2021,6 +2120,7 @@ test('buildCampaignAppendixRows includes both quarter columns and filters zero-s
   ]);
   const currentManagedByMap = new Map([
     ['Search::Search - Google Ads', { channel: 'Search', platform: 'Search - Google Ads', spend: 100, kbas: 20, byoStarts: 10, byoCompletes: 5, inventorySearches: 8, leads: 2, impressions: 1000 }],
+    ['Connected TV / OTT::Zeta', { channel: 'Connected TV / OTT', platform: 'Zeta', spend: 70, kbas: 7, byoStarts: 3, byoCompletes: 2, inventorySearches: 1, leads: 1, impressions: 600 }],
     ['Digital Display::DV360', { channel: 'Digital Display', platform: 'DV360', spend: 50, kbas: 5, byoStarts: 2, byoCompletes: 1, inventorySearches: 3, leads: 1, impressions: 500 }],
   ]);
   const comparisonManagedByMap = new Map([
@@ -2037,6 +2137,7 @@ test('buildCampaignAppendixRows includes both quarter columns and filters zero-s
   );
 
   const searchPlatform = rows.find((row) => row.rowType === 'platform' && row.channel === 'Search');
+  const ctvPlatform = rows.find((row) => row.rowType === 'platform' && row.channel === 'Connected TV / OTT');
   const socialPlatform = rows.find((row) => row.rowType === 'platform' && row.channel === 'Social');
   const displayRows = rows.filter((row) => row.channel === 'Digital Display' || row.channel === 'Display');
 
@@ -2044,6 +2145,7 @@ test('buildCampaignAppendixRows includes both quarter columns and filters zero-s
   assert.equal(searchPlatform.current.spendDisplay, '$100.00');
   assert.equal(searchPlatform.comparison.spendDisplay, '$80.00');
   assert.equal(searchPlatform.current.spendDeltaLabel, '+25%');
+  assert.equal(ctvPlatform?.platform, 'Programmatic');
 
   assert.equal(socialPlatform, undefined);
   assert.deepEqual(displayRows, []);

@@ -152,13 +152,13 @@ Directionality:
 ### Page Visits
 
 Meaning:
-- quarter total landing-page loads used as the denominator for Social lead-rate secondary KPI commentary
+- quarter total landing-page loads
 
 Display:
 - compact number
 
 Directionality:
-- higher is contextual and should be interpreted with Leads and Lead rate
+- higher is contextual and should be interpreted with channel traffic quality
 
 ### CPL
 
@@ -175,8 +175,8 @@ Directionality:
 ### Lead Rate
 
 Meaning:
-- lead conversion rate from landing-page traffic
-- computed as `Leads / Page Visits`
+- lead submission rate from BYO starts
+- computed as `Leads / BYO Starts`
 
 Display:
 - percentage
