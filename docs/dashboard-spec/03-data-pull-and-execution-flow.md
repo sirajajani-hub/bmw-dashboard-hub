@@ -14,7 +14,7 @@ Use this file when you need to:
 - change filter behavior or default quarter behavior
 - change datasource usage assumptions
 - preserve payload assembly order during refactors
-- align PDF export behavior with the main dashboard response
+- preserve browser rendering behavior used for Figma capture
 
 This file is about execution flow. It is not the place for narrative tone rules or detailed QA policy.
 
@@ -24,8 +24,7 @@ This file is about execution flow. It is not the place for narrative tone rules 
 - backend API request handling
 - Tableau MCP datasource querying
 - quarter and comparison-quarter selection
-- payload assembly for dashboard rendering
-- PDF export behavior that reuses the dashboard API
+- payload assembly for dashboard rendering and Figma capture review
 
 ## Runtime Source of Truth
 
@@ -35,7 +34,6 @@ Implementation touchpoints:
 - `server/dashboardService.ts`
 - `server/tableauConfig.ts`
 - `server/tableauMcpClient.ts`
-- `scripts/export_dashboard_pdf.py`
 
 ## High-Level Flow
 
@@ -49,7 +47,6 @@ Implementation touchpoints:
 8. The backend derives KPIs, charts, summaries, drivers, insights, and QA checks.
 9. The backend returns a single JSON payload.
 10. The frontend renders the deck from that payload.
-11. The PDF export script, when used, calls the same API and formats the returned payload into a report.
 
 ## Frontend Request Flow
 
@@ -189,6 +186,9 @@ Purpose:
 - build KPI cards
 - build monthly chart points
 - support benchmark calculations
+
+Rendering note:
+- for the Seattle MACO only, the CP KBA line chart suppresses the January 2025 point in the plotted series; the client also suppresses the same point when it is an extreme CP KBA outlier versus the benchmark, so the underlying monthly payload and other charts remain unchanged.
 
 Expected monthly fields include:
 - Spend
@@ -374,19 +374,6 @@ Behavior difference:
 - when a specific MACO is selected, some comparison structures may use both scoped detail and broader Region detail
 - scope titles and subtitles should reflect whether the view is master or split
 
-## PDF Export Path
-
-The PDF export flow is not an independent Tableau extraction path.
-
-Rules:
-- the PDF export script calls the same dashboard API endpoint
-- it reuses the assembled backend payload
-- it formats the payload into a PDF report
-
-This means:
-- dashboard API behavior changes can affect PDF export behavior
-- the API payload is the shared reporting contract for both browser view and PDF output
-
 ## Output Expectations
 
 The dashboard backend should return one coherent JSON payload that is sufficient to render:
@@ -488,7 +475,6 @@ Primary implementation touchpoints:
 - `server/dashboardService.ts` -> query orchestration, scope resolution, quarter selection, payload assembly
 - `server/tableauConfig.ts` -> datasource and MCP runtime config
 - `server/tableauMcpClient.ts` -> MCP connection, request queue, response parsing
-- `scripts/export_dashboard_pdf.py` -> API reuse for PDF generation
 
 ## Change Checklist
 
@@ -498,5 +484,5 @@ Before changing this flow, confirm:
 - does it change quarter default behavior?
 - does it change cache behavior?
 - does it alter the API payload contract?
-- does it affect PDF export behavior?
+- does it affect browser rendering used for Figma capture?
 - does a corresponding runtime code map update need to be made?

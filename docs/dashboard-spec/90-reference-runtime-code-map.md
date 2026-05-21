@@ -24,7 +24,6 @@ Core runtime files:
 - `server/tableauMcpClient.ts`
 - `server/tableauConfig.ts`
 - `src/pages/DashboardShell.tsx`
-- `scripts/export_dashboard_pdf.py`
 
 ## Spec To Code Ownership Map
 
@@ -77,7 +76,7 @@ Primary implementation relevance:
 - Tableau pull
 - scope and quarter resolution
 - payload assembly
-- export path
+- browser rendering path used for Figma capture
 
 Primary runtime touchpoints:
 - `src/pages/DashboardShell.tsx -> loadDashboard()`
@@ -89,7 +88,6 @@ Primary runtime touchpoints:
 - `server/dashboardService.ts -> optional stage timing logs when DASHBOARD_TIMING=true`
 - `server/tableauMcpClient.ts -> callTableauTool()`
 - `server/tableauConfig.ts -> resolveTableauMcpConfig()`
-- `scripts/export_dashboard_pdf.py -> fetch_dashboard_payload()`
 
 ### `04-insights.md`
 
@@ -185,13 +183,6 @@ Owns:
 - confirming the KPI section renders without dashboard API error banners or browser console/page errors
 - the `npm run test:browser` validation path for changes that need live browser verification beyond `npm test`
 
-### `scripts/export_dashboard_pdf.py`
-
-Owns:
-- PDF export path that consumes `/api/dashboard/bmw`
-- document rendering from the already-built dashboard payload
-- not direct Tableau querying
-
 ## Current Source Of Truth Boundary
 
 Runtime source of truth for behavior:
@@ -210,7 +201,7 @@ Important current couplings:
 - recommendation wording depends on channel-specific metric-selection helpers
 - quarter comparison behavior depends on monthly query results and quarter resolution logic
 - scope behavior depends on `buildScopeFilters()` applying the fixed `CPO Categorization = New Car` constraint
-- export behavior depends on the same API payload returned to the dashboard UI
+- browser rendering and Figma capture review depend on the API payload returned to the dashboard UI
 
 ## Change Impact Heuristics
 

@@ -457,6 +457,7 @@ function ComboChart({
   cpKbaBenchmark,
   cpKbaBenchmarkDisplay,
   points,
+  selectedMaco,
 }: {
   title: string;
   subtitle: string;
@@ -468,6 +469,7 @@ function ComboChart({
   cpKbaBenchmark: number;
   cpKbaBenchmarkDisplay: string;
   points: ChartPoint[];
+  selectedMaco: string;
 }) {
   const compactMomLabel = (label: string) => {
     if (label === 'Window start') return 'Start';
@@ -606,6 +608,10 @@ function ComboChart({
   const cpKbaLowPoint = points.reduce((low, point) => (point.cpKba < low.cpKba ? point : low), points[0]);
   const cpKbaStartPoint = points[0];
   const cpKbaEndPoint = points[points.length - 1];
+  const isSeattleMaco = selectedMaco.toUpperCase().includes('SEATTLE');
+  const cpKbaLineValues = points.map((point) =>
+    point.label === 'Jan 25' && (isSeattleMaco || point.cpKba > cpKbaBenchmark * 100) ? null : point.cpKba,
+  );
   const cpKbaDynamicSubtitle = `${expandMonthLabel(cpKbaStartPoint.label)} through ${expandMonthLabel(cpKbaEndPoint.label)}`;
   const currentQuarterTotals = aggregateQuarter(currentQuarterLabel);
   const priorQuarterTotals = aggregateQuarter(priorQuarterLabel);
@@ -767,7 +773,7 @@ function ComboChart({
                 mode: 'lines+markers',
                 name: 'CP KBA',
                 x: points.map((point) => point.label),
-                y: points.map((point) => point.cpKba),
+                y: cpKbaLineValues,
                 line: { color: '#111827', width: 3, shape: 'spline', smoothing: 1.2 },
                 marker: {
                   color: '#FFFFFF',
@@ -1548,6 +1554,7 @@ export default function DashboardShell() {
               cpKbaBenchmark={payload.comboChart.cpKbaBenchmark}
               cpKbaBenchmarkDisplay={payload.comboChart.cpKbaBenchmarkDisplay}
               points={payload.comboChart.points}
+              selectedMaco={payload.scope.maco}
             />
 
             <section className="grid gap-8">

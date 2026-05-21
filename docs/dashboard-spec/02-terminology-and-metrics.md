@@ -325,7 +325,7 @@ This spec should keep terminology stable across:
 - dashboard UI
 - narrative insights
 - QA messaging
-- PDF export output
+- browser output used for Figma capture
 
 ## Non-Goals
 

@@ -6,7 +6,6 @@ Primary Domain: Quarterly reporting policy
 Primary Code Touchpoints:
 - `server/dashboardService.ts`
 - `src/pages/DashboardShell.tsx`
-- `scripts/export_dashboard_pdf.py`
 
 ## Purpose
 
@@ -179,4 +178,3 @@ If a requested change alters how the deck should frame the business question, up
 Current implementation references most related to this business context:
 - `server/dashboardService.ts`
 - `src/pages/DashboardShell.tsx`
-- `scripts/export_dashboard_pdf.py`

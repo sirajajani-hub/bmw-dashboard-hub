@@ -19,8 +19,7 @@ The runtime currently:
 - assembles channel cards with spend, KBAs, impressions, and CP KBA summary metrics
 - renders the dashboard catalog with clearly differentiated per-card gradient artwork variants, with each card led by a distinct dominant color family while still sharing one common visual style
 - presents the `Tier 2: Quarterly MACO Reports` dashboard shell entry using the same card size and treatment as the dashboard catalog, with a black/grey dominant hero treatment for the AI-powered Tier 2 MACO reporting template
-- returns one payload for the browser dashboard
-- reuses the same payload for PDF export
+- returns one payload for the browser dashboard used for review and Figma capture
 
 ## Current Runtime Surfaces
 
@@ -30,7 +29,6 @@ Primary runtime files:
 - `server/dashboardService.ts`
 - `server/tableauConfig.ts`
 - `server/tableauMcpClient.ts`
-- `scripts/export_dashboard_pdf.py`
 
 ## Current Datasource Position
 

@@ -175,6 +175,40 @@ Persisted selection and dashboard catalog state should continue to use the exist
 - Avoid changing dashboard copy casually. Narrative text is part of reporting output and should be backed by tests or grounded rules.
 - After every code edit, update the relevant dashboard spec files under `docs/dashboard-spec/` in the same workstream.
 
+### Figma capture links
+
+Use browser capture links instead of PDF export when handing dashboard designs to Figma.
+
+Before generating or sending a capture link, ask the user which Figma design file should receive the capture. If they provide a Figma file URL, use that as the destination context. If they do not have one yet, ask whether they want to create a new Figma file or use an existing one before proceeding.
+
+To generate a Figma capture link:
+
+1. Start the API server with Tableau MCP configuration available:
+
+```bash
+npm run server
+```
+
+2. Start the frontend:
+
+```bash
+npm run dev
+```
+
+3. Use the dashboard shell URL as the capture target:
+
+```text
+http://localhost:3000/dashboards/shell
+```
+
+This URL is the capture link for the locally rendered dashboard shell. Open it in the browser, confirm the dashboard has finished loading, set any needed Region, MACO, current quarter, or comparison quarter controls, and then use the active browser page as the source for the Figma capture.
+
+Important constraints:
+- the dashboard shell currently stores Region, MACO, current quarter, and comparison quarter in React state, not in URL query parameters
+- the URL above is the stable capture target for the default loaded dashboard state
+- for a specific Region, MACO, or quarter view, open the shell locally, set the dashboard controls in the browser, wait for the API refresh to finish, then capture the rendered page
+- do not recreate a PDF export path to support Figma handoff
+
 ## Testing Expectations
 
 For changes to reporting logic, insight text, QA checks, filters, or payload shape:
