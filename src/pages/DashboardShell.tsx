@@ -1578,6 +1578,17 @@ export default function DashboardShell() {
                           secondaryCardTitle={card.id === 'social' && campaignCard ? 'Social Campaigns' : undefined}
                           secondaryHighlights={socialCampaignHighlights}
                         />
+                        {card.id === 'video' ? (
+                          <section className="mt-8 overflow-hidden rounded-[9px] border border-black/8 bg-white shadow-[0px_4px_30px_1px_rgba(0,0,0,0.09)]">
+                            <div className="min-h-[588px] px-[37px] py-10">
+                              <div className="border-b border-black/8 pb-5">
+                                <h2 className="text-[20px] uppercase tracking-[0.18em] text-black">
+                                  Learnings & Recommendations
+                                </h2>
+                              </div>
+                            </div>
+                          </section>
+                        ) : null}
                       </div>
                     );
                   });

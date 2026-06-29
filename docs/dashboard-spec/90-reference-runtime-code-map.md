@@ -163,6 +163,7 @@ Owns:
 - request serialization
 - response parsing
 - plain-text error handling
+- one retry after the normalized Tableau MCP 401 authentication error
 
 ### `src/pages/DashboardShell.tsx`
 

@@ -563,6 +563,18 @@ function shiftMonth(date: Date, delta: number) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + delta, 1));
 }
 
+export function buildComboChartWindow() {
+  const chartStartMonth = new Date(Date.UTC(2025, 0, 1));
+  const chartEndMonth = new Date(Date.UTC(2026, 5, 1));
+  const window: Date[] = [];
+
+  for (let cursor = new Date(chartStartMonth); cursor <= chartEndMonth; cursor = shiftMonth(cursor, 1)) {
+    window.push(new Date(cursor));
+  }
+
+  return window;
+}
+
 function sameMonth(date: Date, other: Date) {
   return date.getUTCFullYear() === other.getUTCFullYear() && date.getUTCMonth() === other.getUTCMonth();
 }
@@ -2933,12 +2945,7 @@ export async function buildDashboardResponse(scope: ScopeParams = {}): Promise<D
     };
   });
 
-  const chartStartMonth = new Date(Date.UTC(2025, 0, 1));
-  const chartEndMonth = new Date(Date.UTC(2026, 2, 1));
-  const fixedChartWindow: Date[] = [];
-  for (let cursor = new Date(chartStartMonth); cursor <= chartEndMonth; cursor = shiftMonth(cursor, 1)) {
-    fixedChartWindow.push(new Date(cursor));
-  }
+  const fixedChartWindow = buildComboChartWindow();
   const monthlyLookup = new Map(
     monthly.data.map((row) => {
       const month = parseMonth(row.Month);
@@ -3550,7 +3557,7 @@ export async function buildDashboardResponse(scope: ScopeParams = {}): Promise<D
     qa,
     kpis,
     comboChart: {
-      title: 'Monthly Spend and All KBAs: Jan 2025 to Mar 2026',
+      title: 'Monthly Spend and All KBAs: Jan 2025 to Jun 2026',
       subtitle: `${points[0]?.label ?? ''} through ${points[points.length - 1]?.label ?? ''}`,
       takeaway: chartTakeaway,
       cpKbaTitle: 'Monthly Cost Per KBA',

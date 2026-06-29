@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   aggregateChannelPlatforms,
   buildCampaignAppendixRows,
+  buildComboChartWindow,
   buildInsights,
   buildAppendixMetricDisplays,
   buildNonVideoMediaCardMetrics,
@@ -68,6 +69,14 @@ const PRIOR_YEAR_SAME_QUARTER: QuarterOption = {
   year: 2025,
   label: 'Q1 2025',
 };
+
+test('buildComboChartWindow includes monthly points through June 2026', () => {
+  const window = buildComboChartWindow();
+
+  assert.equal(window.length, 18);
+  assert.equal(window[0].toISOString(), '2025-01-01T00:00:00.000Z');
+  assert.equal(window.at(-1)?.toISOString(), '2026-06-01T00:00:00.000Z');
+});
 
 function sectionBulletsById(result: ReturnType<typeof buildInsights>, channelName: string) {
   const channel = result.channels.find((item) => item.channel === channelName);

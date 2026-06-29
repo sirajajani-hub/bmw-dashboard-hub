@@ -7,6 +7,10 @@ type JsonRecord = Record<string, unknown>;
 let clientPromise: Promise<Client> | null = null;
 let requestQueue: Promise<unknown> = Promise.resolve();
 
+export function isTableauAuthenticationError(error: unknown) {
+  return error instanceof Error && error.message.includes('Tableau MCP authentication failed (401)');
+}
+
 function extractPlainTextError(rawText: string) {
   const trimmed = rawText.trim();
   const requestIdMatch = trimmed.match(/requestId:\s*([^,\n]+)/i);
@@ -111,6 +115,22 @@ async function getClient() {
   return clientPromise;
 }
 
+async function resetClient() {
+  const currentClientPromise = clientPromise;
+  clientPromise = null;
+
+  if (!currentClientPromise) {
+    return;
+  }
+
+  try {
+    const client = await currentClientPromise;
+    await client.close();
+  } catch (error) {
+    console.error('[tableau-mcp] Failed to close Tableau MCP client after auth failure', error);
+  }
+}
+
 export async function callTableauTool<T extends JsonRecord>(name: string, args: JsonRecord) {
   const run = async () => {
     const client = await getClient();
@@ -128,7 +148,21 @@ export async function callTableauTool<T extends JsonRecord>(name: string, args: 
     return parseJsonPayload<T>(name, textBlock.text);
   };
 
-  const nextRequest = requestQueue.then(run, run);
+  const runWithAuthRetry = async () => {
+    try {
+      return await run();
+    } catch (error) {
+      if (!isTableauAuthenticationError(error)) {
+        throw error;
+      }
+
+      console.warn(`[tableau-mcp] ${name} returned 401; resetting Tableau MCP client and retrying once`);
+      await resetClient();
+      return run();
+    }
+  };
+
+  const nextRequest = requestQueue.then(runWithAuthRetry, runWithAuthRetry);
   requestQueue = nextRequest.then(
     () => undefined,
     () => undefined,

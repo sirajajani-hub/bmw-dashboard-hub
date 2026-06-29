@@ -51,6 +51,11 @@ Implementation touchpoints:
 10. The frontend renders the deck from that payload.
 11. The PDF export script, when used, calls the same API and formats the returned payload into a report.
 
+Tableau MCP request behavior:
+- Tableau tool calls are serialized through `server/tableauMcpClient.ts`
+- if a tool call returns the normalized Tableau MCP 401 authentication error, the client should close and reset the stdio MCP connection, then retry that same tool call once before surfacing the error to the route
+- non-auth Tableau errors should not be retried by this layer
+
 ## Frontend Request Flow
 
 ### Entry Point
@@ -352,6 +357,10 @@ This order matters because later layers depend on earlier derived outputs:
 - QA depends on totals, chart points, and insight audit metadata
 - frontend assumes one assembled payload instead of multiple incremental fragments
 
+Combo chart window:
+- the monthly Spend / All KBAs and Cost Per KBA chart series should include fixed monthly points from January 2025 through June 2026
+- the fixed chart range is presentation-oriented and independent from the selected current/comparison quarter filters used for KPI, media-card, appendix, and insight calculations
+
 Current insight rewrite behavior:
 - the backend must run a post-processing rewrite stage after `buildInsights()`
 - current implementation scope includes all rendered insight bullets, including `variance`, `quarterLearnings`, `delivery`, `campaignDelivery`, `optimizations`, and `recommendations`
@@ -430,6 +439,7 @@ Current shell rendering behavior:
 - the embedded `Social Campaigns` subsection should render campaign takeaways only, with the takeaways header labeled `Key Campaign Takeaways`
 - the embedded `Social Campaigns` subsection should replace the right-side KPI tile area with the `Key Campaign Takeaways` list instead of rendering duplicate campaign KPIs
 - Social platform and campaign entries with `$0` spend must be excluded from the Social card and embedded `Social Campaigns` subsection
+- after the standalone `Video` card, the shell should render an empty `Learnings & Recommendations` section using the same visual section structure as the top `Key Quarterly Takeaways` block, with only the title populated and three times the top block's minimum height
 
 Card metric rules:
 - Search card summary metrics must display `Clicks` instead of `Impressions`
@@ -487,7 +497,7 @@ Primary implementation touchpoints:
 - `server/index.ts` -> route, parameter handling, cache, API response
 - `server/dashboardService.ts` -> query orchestration, scope resolution, quarter selection, payload assembly
 - `server/tableauConfig.ts` -> datasource and MCP runtime config
-- `server/tableauMcpClient.ts` -> MCP connection, request queue, response parsing
+- `server/tableauMcpClient.ts` -> MCP connection, request queue, auth retry, response parsing
 - `scripts/export_dashboard_pdf.py` -> API reuse for PDF generation
 
 ## Change Checklist
